@@ -41,6 +41,8 @@ class AddressSuggest
      *
      * @return array<int, array{label: string, hint: string, street: string, house: string}>
      */
+    public function __construct(private readonly StreetIndex $index) {}
+
     public function suggest(string $query, ?string $city = null): array
     {
         $query = trim($query);
@@ -54,6 +56,27 @@ class AddressSuggest
 
         if ($housePart !== '' && $streetPart !== '') {
             return $this->suggestHouses($streetPart, $housePart, $city);
+        }
+
+        // Полный список улиц города, если он уже собран: поиск по нему находит
+        // совпадение в любой части названия, чего внешнее автодополнение не умеет
+        // («вет» → «проспект Ветеранов»).
+        if ($city !== '') {
+            $streets = $this->index->get($city);
+
+            if ($streets !== null) {
+                return array_map(
+                    fn (string $street) => ['label' => $street, 'hint' => '', 'street' => $street, 'house' => ''],
+                    $this->index->search($streets, $query)
+                );
+            }
+
+            // Индекс строится до минуты — отдельным процессом, чтобы покупатель
+            // не ждал. Пока его нет, отвечаем внешним автодополнением.
+            if (! $this->index->scheduleBuild($city)) {
+                // Фоном не вышло (exec запрещён) — тогда после отдачи ответа.
+                app()->terminating(fn () => $this->buildIndex($city));
+            }
         }
 
         return $this->remember('streets', [$query, $city], fn () => $this->fetchStreets($query, $city));
@@ -137,11 +160,10 @@ class AddressSuggest
      */
     private function fetchStreets(string $query, string $city): array
     {
-        // Город в запросе обязателен: иначе «Ленина» приносит улицы со всей страны.
-        $features = $this->request($this->withCity($query, $city), [
+        $features = $this->request(...$this->localize($query, $city, [
             'osm_tag' => self::ADDRESS_TAGS,
             'limit' => 25,
-        ]);
+        ]));
 
         $items = [];
 
@@ -185,13 +207,13 @@ class AddressSuggest
      */
     private function fetchHouses(string $street, string $house, string $city, bool $numbersOnly): array
     {
-        // Номер отделяется запятой («Москва, Тверская улица, 12»): без неё Photon
-        // считает его частью названия и первой же выдаёт 1-ю Тверскую-Ямскую.
+        // Номер отделяется запятой («Тверская улица, 12»): без неё Photon считает
+        // его частью названия и первой же выдаёт 1-ю Тверскую-Ямскую.
         // Улицы (highway) из тегов убраны — на этом шаге нужны только дома.
-        $features = $this->request($this->withCity($street.', '.$house, $city), [
+        $features = $this->request(...$this->localize($street.', '.$house, $city, [
             'osm_tag' => self::HOUSE_TAGS,
             'limit' => 30,
-        ]);
+        ]));
 
         $items = [];
 
@@ -308,6 +330,84 @@ class AddressSuggest
         return ! preg_match('/^\d/u', $value);
     }
 
+    /**
+     * Привязать поиск к городу. Название города в самой строке запроса не годится:
+     * Photon ищет по фразе целиком, и «Москва, вет» не находит ни Ветошного
+     * переулка, ни Веткиной улицы — вместо них приезжает «подъезд к МТФ
+     * с. Ветлянка». Поэтому город переводится в координаты (`lat`/`lon`), которые
+     * лишь поднимают близкие объекты, а искать остаётся по одному названию улицы.
+     * Координаты не ограничивают выдачу жёстко — чужие города всё равно
+     * отсеиваются по ответу в inCity().
+     *
+     * @return array{0: string, 1: array<string, mixed>}
+     */
+    private function localize(string $query, string $city, array $params): array
+    {
+        $point = $city !== '' ? $this->cityPoint($city) : null;
+
+        if ($point === null) {
+            // Координат нет — остаётся старый способ, иначе «Ленина» принесёт
+            // улицы со всей страны.
+            return [$this->withCity($query, $city), $params];
+        }
+
+        return [$query, $params + ['lat' => $point['lat'], 'lon' => $point['lon']]];
+    }
+
+    /**
+     * Собрать индекс улиц города. Координаты передаём сразу: у части городов нет
+     * административной границы в OSM, и без них индекс собрать нечем.
+     *
+     * @return array<int, string>
+     */
+    public function buildIndex(string $city): array
+    {
+        return $this->index->build($city, $this->cityPoint($city));
+    }
+
+    /**
+     * Координаты и рамка города: по ним приоритизируется поиск улиц и строится
+     * индекс.
+     *
+     * @return array{lat: float, lon: float, extent: array<int, float>|null}|null
+     */
+    private function cityPoint(string $city): ?array
+    {
+        return Cache::remember(
+            'city-point:'.md5(mb_strtolower($city)),
+            now()->addDays(30),
+            function () use ($city) {
+                $features = $this->request($city, ['osm_tag' => self::CITY_TAGS, 'limit' => 5]);
+
+                foreach ($features as $feature) {
+                    $p = $feature['properties'] ?? [];
+                    $coordinates = $feature['geometry']['coordinates'] ?? null;
+
+                    if (($p['countrycode'] ?? '') !== 'RU' || ! is_array($coordinates)) {
+                        continue;
+                    }
+
+                    if (! $this->sameCity($city, (string) ($p['name'] ?? ''))) {
+                        continue;
+                    }
+
+                    $extent = $p['extent'] ?? null;
+
+                    // В GeoJSON порядок — [долгота, широта].
+                    return [
+                        'lat' => (float) $coordinates[1],
+                        'lon' => (float) $coordinates[0],
+                        'extent' => is_array($extent) && count($extent) === 4
+                            ? array_map('floatval', $extent)
+                            : null,
+                    ];
+                }
+
+                return null;
+            }
+        );
+    }
+
     private function withCity(string $query, string $city): string
     {
         return $city !== '' ? $city.', '.$query : $query;
@@ -315,6 +415,12 @@ class AddressSuggest
 
     private function inCity(array $properties, string $city): bool
     {
+        // Страна проверяется всегда: у объекта из Болгарии город и регион бывают
+        // пустыми, и мягкая проверка ниже пропускала его в подсказки.
+        if (($properties['countrycode'] ?? '') !== 'RU') {
+            return false;
+        }
+
         if ($city === '') {
             return true;
         }
