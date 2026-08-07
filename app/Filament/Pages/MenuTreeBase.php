@@ -181,15 +181,23 @@ abstract class MenuTreeBase extends BasePage
         ], parent::getTreeActions());
     }
 
-    /** Пакет подписывает модалку служебным именем модели («Создать menu item»). */
-    protected function afterConfiguredCreateAction(CreateAction $action): CreateAction
+    /**
+     * Подписи действий. Без них модалка называется «Создать menu item» — Filament
+     * берёт служебное имя модели. Настраиваем в самих `getCreateAction()`/
+     * `getEditAction()`: хук `afterConfigured…` до подписей не доходит.
+     */
+    protected function getCreateAction(): CreateAction
     {
-        return $action->label('Создать пункт')->modalHeading('Новый пункт меню')->modalSubmitActionLabel('Создать');
+        return parent::getCreateAction()
+            ->modalHeading('Новый пункт меню')
+            ->modalSubmitActionLabel('Создать');
     }
 
-    protected function afterConfiguredEditAction(TreeEditAction $action): TreeEditAction
+    protected function getEditAction(): TreeEditAction
     {
-        return $action->modalHeading('Пункт меню')->modalSubmitActionLabel('Сохранить');
+        return parent::getEditAction()
+            ->modalHeading('Пункт меню')
+            ->modalSubmitActionLabel('Сохранить');
     }
 
     protected function hasDeleteAction(): bool
