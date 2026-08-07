@@ -33,6 +33,7 @@ class ShippingPaymentSettings extends Page implements HasForms
         'yandex_delivery_auto_create',
         'tbank_terminal_key', 'tbank_secret_key',
         'yandex_pay_merchant_id', 'yandex_pay_api_key', 'yandex_pay_env',
+        'dadata_api_key',
     ];
 
     public ?array $data = [];
@@ -86,6 +87,15 @@ class ShippingPaymentSettings extends Page implements HasForms
                         Forms\Components\TextInput::make('yandex_map_api_key')
                             ->label('Ключ Яндекс.Карт (для виджета выбора ПВЗ)')
                             ->helperText('Нужен официальному виджету СДЭК для отрисовки карты на чекауте — ключ типа "JavaScript API и HTTP Геокодер" с сайта yandex.ru/maps-api, привязанный к домену сайта.'),
+                    ]),
+                Forms\Components\Section::make('Подсказки адреса (DaData)')
+                    ->description('Автодополнение города, улицы и дома при оформлении заказа. Ключ — на dadata.ru, раздел «API-ключи» (бесплатно 10 000 подсказок в сутки). Секретный ключ здесь не нужен: он требуется только «Стандартизации».')
+                    ->schema([
+                        Forms\Components\TextInput::make('dadata_api_key')
+                            ->label('API-ключ DaData')
+                            ->password()
+                            ->revealable()
+                            ->helperText('Если поле пустое, подсказки берутся из бесплатного OpenStreetMap — они заметно беднее: находят улицу только по началу названия.'),
                     ]),
                 Forms\Components\Section::make('Яндекс Доставка')
                     ->description('Токен из личного кабинета Яндекс Доставки (раздел «Интеграция → API»). Посылки едут не от нашего адреса, а из точки сдачи Яндекса: заказ отвозится туда, дальше Яндекс доставляет покупателю в ПВЗ или курьером.')

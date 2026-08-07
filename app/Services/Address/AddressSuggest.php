@@ -41,7 +41,10 @@ class AddressSuggest
      *
      * @return array<int, array{label: string, hint: string, street: string, house: string}>
      */
-    public function __construct(private readonly StreetIndex $index) {}
+    public function __construct(
+        private readonly StreetIndex $index,
+        private readonly DadataClient $dadata,
+    ) {}
 
     public function suggest(string $query, ?string $city = null): array
     {
@@ -56,6 +59,14 @@ class AddressSuggest
 
         if ($housePart !== '' && $streetPart !== '') {
             return $this->suggestHouses($streetPart, $housePart, $city);
+        }
+
+        if ($this->dadata->isConfigured()) {
+            $streets = $this->dadata->suggestStreets($query, $city);
+
+            if ($streets !== []) {
+                return $streets;
+            }
         }
 
         // Полный список улиц города, если он уже собран: поиск по нему находит
@@ -97,11 +108,25 @@ class AddressSuggest
             return [];
         }
 
+        if ($this->dadata->isConfigured()) {
+            $houses = $this->dadata->suggestHouses($street, $house, $city, $numbersOnly);
+
+            if ($houses !== []) {
+                return $houses;
+            }
+        }
+
         return $this->remember(
             'houses',
             [$street, $house, $city, $numbersOnly ? 'n' : 'f'],
             fn () => $this->fetchHouses($street, $house, $city, $numbersOnly)
         );
+    }
+
+    /** Настроен ли полноценный адресный справочник (сейчас это DaData). */
+    public function hasPreciseSource(): bool
+    {
+        return $this->dadata->isConfigured();
     }
 
     /**
@@ -113,6 +138,14 @@ class AddressSuggest
 
         if (mb_strlen($query) < 2) {
             return [];
+        }
+
+        if ($this->dadata->isConfigured()) {
+            $cities = $this->dadata->suggestCities($query);
+
+            if ($cities !== []) {
+                return $cities;
+            }
         }
 
         return $this->remember('cities', [$query], fn () => $this->fetchCities($query));
