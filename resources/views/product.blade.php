@@ -130,6 +130,15 @@
                     <p class="btn add-cart-link btn-mobile-product">
                         В корзину
                     </p>
+                    {{-- На мобильных кнопка покупки живёт здесь (в форме она скрыта темой),
+                         поэтому бейдж Сплита нужен рядом именно с этой кнопкой. --}}
+                    @if($selectedVariant)
+                        @include('partials.yandex-pay-badge', [
+                            'amount' => $selectedVariant->currentPrice(),
+                            'type' => 'bnpl',
+                            'size' => 'm',
+                        ])
+                    @endif
                 </div>
 
         </div>
@@ -170,7 +179,7 @@
             @include('partials.yandex-pay-badge', [
                 'amount' => $selectedVariant->currentPrice(),
                 'type' => 'bnpl',
-                'size' => 'l',
+                'size' => 'm',
             ])
         @endif
 

@@ -36,6 +36,7 @@ Route::post('/checkout/gift-certificate', [CheckoutController::class, 'applyGift
 Route::post('/checkout/pickup-points', [CheckoutController::class, 'pickupPoints'])->name('checkout.pickup-points');
 Route::post('/checkout/yandex-pickup-points', [CheckoutController::class, 'yandexPickupPoints'])->name('checkout.yandex-pickup-points');
 Route::get('/checkout/cities', [CheckoutController::class, 'cities'])->name('checkout.cities');
+Route::get('/checkout/streets', [CheckoutController::class, 'streets'])->name('checkout.streets');
 Route::get('/checkout/success/{order}', [CheckoutController::class, 'success'])->name('checkout.success');
 Route::get('/checkout/failed/{order}', [CheckoutController::class, 'failed'])->name('checkout.failed');
 

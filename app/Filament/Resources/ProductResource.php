@@ -66,7 +66,12 @@ class ProductResource extends Resource
                         Forms\Components\TextInput::make('sort_order')
                             ->label('Порядок сортировки')
                             ->numeric()
-                            ->default(0),
+                            ->step(1)
+                            ->default(0)
+                            // Пустое поле раньше уходило в БД как null и роняло сохранение
+                            // ошибкой «sort_order cannot be null» — считаем его нулём.
+                            ->dehydrateStateUsing(fn ($state) => (int) $state)
+                            ->helperText('Чем меньше число, тем выше товар в каталоге. Можно ставить отрицательные: -10 поднимет товар в начало, остальным менять ничего не нужно.'),
                     ]),
                 Forms\Components\Section::make('SEO')
                     ->columns(2)
@@ -96,7 +101,13 @@ class ProductResource extends Resource
                 Tables\Columns\TextColumn::make('category.name')->label('Категория')->sortable(),
                 Tables\Columns\IconColumn::make('is_new')->label('Новинка')->boolean(),
                 Tables\Columns\TextColumn::make('status')->label('Статус')->badge(),
-                Tables\Columns\TextColumn::make('sort_order')->label('Сортировка')->sortable(),
+                // Правится прямо в списке: обычно поднять надо один товар,
+                // ради этого не стоит заходить в его карточку.
+                Tables\Columns\TextInputColumn::make('sort_order')
+                    ->label('Сортировка')
+                    ->type('number')
+                    ->rules(['required', 'integer'])
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('updated_at')->label('Обновлён')->dateTime()->sortable(),
             ])
             // Вторичная сортировка по id обязательна: у всех товаров sort_order = 0,

@@ -128,5 +128,10 @@ class CatalogController extends Controller
                 default => $query->orderBy('products.sort_order', 'asc'),
             },
         };
+
+        // Вторичная сортировка обязательна: у большинства товаров sort_order
+        // одинаковый, а при равных значениях порядок строк между страницами не
+        // определён — товар мог показаться дважды при подгрузке или пропасть.
+        $query->orderBy('products.id', 'asc');
     }
 }

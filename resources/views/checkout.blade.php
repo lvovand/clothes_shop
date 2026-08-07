@@ -118,7 +118,7 @@
                                            placeholder="Выбрать город*" value="{{ old('city') }}" autocomplete="address-level2">
                                 </p>
                             </div>
-                            <ul id="city-list" style="display: none;"></ul>
+                            <ul id="city-list" class="suggest-list" style="display: none;"></ul>
 
                             <ul class="col-01">
                                 @foreach($shippingMethods as $method)
@@ -288,7 +288,7 @@
                                     </div>
                                     <div class="review-pay-order-item review-pay-order-item_shipping">
                                         <p>ДОСТАВКА:</p>
-                                        <p><span><span class="woocommerce-Price-amount amount" id="shipping-display"><bdi>{{ $price($totals['shipping']) }}&nbsp;<span class="woocommerce-Price-currencySymbol">&#8381;</span></bdi></span></span></p>
+                                        <p><span><span class="woocommerce-Price-amount amount" id="shipping-display"><bdi>@if($shippingUnknown ?? false)—@else{{ $price($totals['shipping']) }}&nbsp;<span class="woocommerce-Price-currencySymbol">&#8381;</span>@endif</bdi></span></span></p>
                                     </div>
                                     <div class="review-pay-order-item review-pay-order-item_gift" @if($totals['gift_used'] <= 0) style="display: none;" @endif>
                                         <p>СЕРТИФИКАТ:</p>
@@ -329,10 +329,14 @@
                                              внутрь выбранного способа доставки, если тому нужен адрес. --}}
                                         <div class="block-fake-adress">
                                             <p class="form-row address-field address-field_street">
-                                                <input type="text" name="street" placeholder="Улица*" value="{{ old('street') }}">
+                                                <input type="text" name="street" placeholder="Улица*" value="{{ old('street') }}" autocomplete="off">
+                                                {{-- Подсказки улиц: разметка и стили те же, что у списка городов. --}}
+                                                <ul id="street-list" class="suggest-list" style="display: none;"></ul>
                                             </p>
                                             <p class="form-row address-field address-field_house">
-                                                <input type="text" name="house" placeholder="Дом*" value="{{ old('house') }}">
+                                                <input type="text" name="house" placeholder="Дом*" value="{{ old('house') }}" autocomplete="off">
+                                                {{-- Номера домов на выбранной улице. --}}
+                                                <ul id="house-list" class="suggest-list" style="display: none;"></ul>
                                             </p>
                                             <p class="form-row address-field address-field_room">
                                                 <input type="text" name="room" placeholder="Квартира/Офис*" value="{{ old('room') }}">
@@ -408,6 +412,7 @@
         pickupPoints: @json(route('checkout.pickup-points')),
         yandexPickupPoints: @json(route('checkout.yandex-pickup-points')),
         cities: @json(route('checkout.cities')),
+        streets: @json(route('checkout.streets')),
     };
     const csrf = @json(csrf_token());
 
@@ -443,14 +448,51 @@
         const el = document.getElementById(id);
         if (!el) return;
         const bdi = el.querySelector('bdi');
-        const symbol = bdi.querySelector('.woocommerce-Price-currencySymbol');
+        // Неизвестная сумма (доставка ещё не рассчитана) — прочерк без знака рубля,
+        // ноль здесь читался бы как «доставка бесплатная». Знак рубля при этом из
+        // разметки исчезает, поэтому обратно он создаётся, а не только переносится.
+        if (value === null) {
+            bdi.textContent = '—';
+            return;
+        }
+        let symbol = bdi.querySelector('.woocommerce-Price-currencySymbol');
+        if (!symbol) {
+            symbol = document.createElement('span');
+            symbol.className = 'woocommerce-Price-currencySymbol';
+            symbol.textContent = '₽';
+        }
         bdi.textContent = (negative ? '−' : '') + money(value);
         bdi.appendChild(symbol);
+    }
+
+    // Пока перевозчик не назвал цену, оформлять нечего: сервер такой заказ всё равно
+    // отклонит, поэтому кнопка гасится и рядом пишется, чего не хватает.
+    function setShippingUnknown(unknown) {
+        const button = document.getElementById('place_order');
+        if (button) {
+            button.disabled = unknown;
+            button.classList.toggle('is-disabled', unknown);
+        }
+        let note = document.getElementById('shipping-unknown-note');
+        if (unknown && !note) {
+            note = document.createElement('p');
+            note.id = 'shipping-unknown-note';
+            note.className = 'shipping-unknown-note';
+            button?.insertAdjacentElement('beforebegin', note);
+        }
+        if (note) {
+            const method = selectedMethod();
+            note.textContent = method && method.dataset.needsPvz === '1'
+                ? 'Выберите пункт выдачи — после этого посчитаем доставку.'
+                : 'Укажите город и адрес — после этого посчитаем доставку.';
+            note.style.display = unknown ? '' : 'none';
+        }
     }
 
     function applyTotals(t) {
         setAmount('subtotal-display', t.subtotal, false);
         setAmount('shipping-display', t.shipping_cost, false);
+        setShippingUnknown(!!t.shipping_unknown);
         setAmount('discount-display', t.discount, true);
         setAmount('gift-display', t.gift_used, true);
         setAmount('total-display', t.total, false);
@@ -774,61 +816,185 @@
         });
     });
 
-    // Подсказки городов. Разметка списка — эталонная (<ul id="city-list"><li>),
-    // стили для неё есть в CSS темы. Данные берём у СДЭК: город должен быть тем,
-    // по которому потом считается доставка.
-    const cityList = document.getElementById('city-list');
-    let citySeq = 0;
+    /* ---------- подсказки адреса ---------- */
 
-    function hideCityList() {
-        cityList.style.display = 'none';
-        cityList.innerHTML = '';
+    // Один компонент на все три поля (город, улица, дом): выпадающий список под
+    // полем, выбор мышью или с клавиатуры (стрелки/Enter/Esc), в строке жирным
+    // выделено то, что человек уже набрал, серым — уточнение (регион, район).
+    // Ответы приходят не в том порядке, в котором отправлены запросы, поэтому
+    // применяется только самый свежий (seq).
+    function attachSuggest({ input, list, minLength, fetchItems, onPick }) {
+        if (!input || !list) return { hide: () => {} };
+
+        let seq = 0;
+        let items = [];
+        let active = -1;
+        let timer;
+
+        function hide() {
+            list.style.display = 'none';
+            list.innerHTML = '';
+            items = [];
+            active = -1;
+            input.removeAttribute('aria-expanded');
+        }
+
+        // Совпавшую часть подсвечиваем, но текст кладём узлами, а не innerHTML:
+        // названия приходят из внешнего источника и в разметку попадать не должны.
+        function highlight(text, query) {
+            const at = query ? text.toLowerCase().indexOf(query.toLowerCase()) : -1;
+            const box = document.createElement('span');
+            box.className = 'suggest-item__main';
+
+            if (at < 0) {
+                box.textContent = text;
+                return box;
+            }
+
+            const strong = document.createElement('strong');
+            strong.textContent = text.slice(at, at + query.length);
+            box.append(text.slice(0, at), strong, text.slice(at + query.length));
+
+            return box;
+        }
+
+        function setActive(index) {
+            const nodes = list.querySelectorAll('li');
+            nodes.forEach(node => node.classList.remove('is-active'));
+
+            if (index < 0 || index >= nodes.length) {
+                active = -1;
+                return;
+            }
+
+            active = index;
+            nodes[index].classList.add('is-active');
+            nodes[index].scrollIntoView({ block: 'nearest' });
+        }
+
+        function render(found, query) {
+            items = found;
+            list.innerHTML = '';
+
+            found.forEach((item, index) => {
+                const li = document.createElement('li');
+                li.className = 'suggest-item';
+                li.append(highlight(item.label, query));
+
+                if (item.hint) {
+                    const hint = document.createElement('span');
+                    hint.className = 'suggest-item__hint';
+                    hint.textContent = item.hint;
+                    li.append(hint);
+                }
+
+                // mousedown, а не click: клик по списку сначала уводит фокус с
+                // поля, и обработчик blur успел бы список спрятать.
+                li.addEventListener('mousedown', event => {
+                    event.preventDefault();
+                    pick(index);
+                });
+
+                list.appendChild(li);
+            });
+
+            list.style.display = '';
+            input.setAttribute('aria-expanded', 'true');
+            setActive(-1);
+        }
+
+        function pick(index) {
+            const item = items[index];
+            if (!item) return;
+            hide();
+            onPick(item);
+        }
+
+        async function run(query) {
+            const current = ++seq;
+            const found = await fetchItems(query).catch(() => []);
+            if (current !== seq) return;
+
+            if (!found || !found.length) {
+                hide();
+                return;
+            }
+
+            render(found, query);
+        }
+
+        input.setAttribute('autocomplete', 'off');
+        input.setAttribute('role', 'combobox');
+
+        input.addEventListener('input', () => {
+            clearTimeout(timer);
+            const query = input.value.trim();
+
+            if (query.length < minLength) {
+                seq++; // ответ на предыдущий, уже неактуальный запрос не покажем
+                hide();
+                return;
+            }
+
+            timer = setTimeout(() => run(query), 300);
+        });
+
+        input.addEventListener('keydown', event => {
+            if (list.style.display === 'none') return;
+
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                const count = items.length;
+                if (!count) return;
+                setActive(event.key === 'ArrowDown'
+                    ? (active + 1) % count
+                    : (active <= 0 ? count - 1 : active - 1));
+                return;
+            }
+
+            if (event.key === 'Enter' && active >= 0) {
+                event.preventDefault();
+                pick(active);
+                return;
+            }
+
+            if (event.key === 'Escape') hide();
+        });
+
+        input.addEventListener('blur', () => setTimeout(hide, 150));
+
+        return { hide };
     }
 
-    async function suggestCities(query) {
-        const seq = ++citySeq;
-        const res = await fetch(routes.cities + '?q=' + encodeURIComponent(query), {
+    async function loadSuggestions(url, params) {
+        const query = new URLSearchParams(params);
+        const res = await fetch(url + '?' + query.toString(), {
             headers: { 'Accept': 'application/json' },
         }).catch(() => null);
-        // Ответы могут прийти не в том порядке, в котором отправлены запросы —
-        // применяем только самый свежий.
-        if (!res || !res.ok || seq !== citySeq) return;
-        const { cities } = await res.json().catch(() => ({ cities: [] }));
-        if (seq !== citySeq) return;
-        if (!cities || !cities.length) {
-            hideCityList();
-            return;
-        }
-        cityList.innerHTML = '';
-        cities.forEach(city => {
-            const li = document.createElement('li');
-            li.textContent = city.label;
-            li.dataset.city = city.city;
-            cityList.appendChild(li);
-        });
-        cityList.style.display = '';
+
+        if (!res || !res.ok) return [];
+
+        return await res.json().then(json => json.cities || json.addresses || []).catch(() => []);
     }
 
-    cityList.addEventListener('click', event => {
-        const li = event.target.closest('li');
-        if (!li) return;
-        cityInput.value = li.dataset.city;
-        hideCityList();
-        refreshTotals();
-        if (selectedMethod()?.dataset.needsPvz === '1') loadPickupPoints();
-    });
-
-    document.addEventListener('click', event => {
-        if (!cityList.contains(event.target) && event.target !== cityInput) hideCityList();
+    // Город: по нему перевозчик ищет тариф, поэтому название должно быть из его
+    // справочника — источник выбирает сервер (СДЭК, если он возит, иначе OSM).
+    const citySuggest = attachSuggest({
+        input: cityInput,
+        list: document.getElementById('city-list'),
+        minLength: 2,
+        fetchItems: query => loadSuggestions(routes.cities, { q: query }),
+        onPick: item => {
+            cityInput.value = item.city;
+            refreshTotals();
+            if (selectedMethod()?.dataset.needsPvz === '1') loadPickupPoints();
+        },
     });
 
     let cityTimer;
     cityInput.addEventListener('input', () => {
         clearTimeout(cityTimer);
-        const query = cityInput.value.trim();
-        if (query.length < 2) hideCityList();
         cityTimer = setTimeout(() => {
-            if (query.length >= 2) suggestCities(query);
             refreshTotals();
             if (selectedMethod()?.dataset.needsPvz === '1') loadPickupPoints();
         }, 400);
@@ -843,6 +1009,47 @@
             clearTimeout(addressTimer);
             addressTimer = setTimeout(refreshTotals, 600);
         });
+    });
+
+    // Подсказки улиц и домов для доставки курьером: перевозчик считает цену по
+    // конкретному адресу, поэтому опечатка в улице стоит покупателю расчёта.
+    const streetInput = form.querySelector('[name="street"]');
+    const houseInput = form.querySelector('[name="house"]');
+    const roomInput = form.querySelector('[name="room"]');
+
+    attachSuggest({
+        input: streetInput,
+        list: document.getElementById('street-list'),
+        minLength: 3,
+        fetchItems: query => loadSuggestions(routes.streets, { q: query, city: cityInput.value.trim() }),
+        onPick: item => {
+            streetInput.value = item.street;
+            // Номер дома подсказка приносит, только если человек набрал его прямо
+            // в поле улицы («Тверская 12»), — уже введённый не затираем.
+            if (item.house) houseInput.value = item.house;
+            refreshTotals();
+            // Дальше человеку всё равно в следующее пустое поле — переносим его туда сами.
+            (item.house ? roomInput : houseInput)?.focus();
+        },
+    });
+
+    // Номера домов подсказываются на уже выбранной улице: без неё «12» — это
+    // запрос ко всему городу, и осмысленного ответа на него нет.
+    attachSuggest({
+        input: houseInput,
+        list: document.getElementById('house-list'),
+        minLength: 1,
+        fetchItems: query => {
+            const street = streetInput.value.trim();
+            if (street.length < 3) return Promise.resolve([]);
+
+            return loadSuggestions(routes.streets, { q: query, city: cityInput.value.trim(), street });
+        },
+        onPick: item => {
+            houseInput.value = item.house;
+            refreshTotals();
+            roomInput?.focus();
+        },
     });
 
     /* ---------- строки корзины ---------- */
@@ -942,6 +1149,9 @@
     moveAddressBlock();
     togglePickupDetails();
     updatePaymentAvailability();
+    // Первая отрисовка приходит с сервера: если у способа по умолчанию цена доставки
+    // ещё неизвестна, кнопку и подсказку надо привести в это же состояние сразу.
+    setShippingUnknown(@json($shippingUnknown ?? false));
 })();
 </script>
 @endif

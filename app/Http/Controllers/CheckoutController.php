@@ -8,6 +8,7 @@ use App\Models\PaymentMethod;
 use App\Models\ShippingMethod;
 use App\Models\SiteSetting;
 use App\Models\Variant;
+use App\Services\Address\AddressSuggest;
 use App\Services\Cdek\CdekClient;
 use App\Services\YandexDelivery\YandexDeliveryClient;
 use App\Services\DiscountService;
@@ -28,6 +29,7 @@ class CheckoutController extends Controller
         private readonly YandexDeliveryClient $yandexDelivery,
         private readonly DiscountService $discounts,
         private readonly ReceiptBuilder $receipts,
+        private readonly AddressSuggest $addressSuggest,
     ) {}
 
     public function index()
@@ -50,7 +52,7 @@ class CheckoutController extends Controller
         // до первого клика, чего у эталона нет.
         $selectedMethod = $shippingMethods->first();
         $shippingCost = $selectedMethod
-            ? ($this->orders->calculateShippingCost($selectedMethod, $cart, old('city')) ?? 0.0)
+            ? $this->orders->calculateShippingCost($selectedMethod, $cart, old('city'))
             : 0.0;
 
         return view('checkout', [
@@ -58,7 +60,10 @@ class CheckoutController extends Controller
             'items' => $variants,
             'shippingMethods' => $shippingMethods,
             'selectedMethod' => $selectedMethod,
-            'totals' => $this->discounts->totals($cart, $shippingCost),
+            'totals' => $this->discounts->totals($cart, $shippingCost ?? 0.0),
+            // Способ по умолчанию может требовать адрес/пункт выдачи, которых ещё нет —
+            // тогда в строке доставки прочерк, а не ноль (ноль читается как «бесплатно»).
+            'shippingUnknown' => $shippingCost === null,
             'yandexMapApiKey' => SiteSetting::get('yandex_map_api_key', config('services.cdek.yandex_map_api_key')),
             // Онлайн-эквайеры берутся из админки («Настройки → Способы оплаты»),
             // оплата при получении живёт отдельно: она не платёжный шлюз, а признак
@@ -97,13 +102,9 @@ class CheckoutController extends Controller
                 'address' => $data['address'] ?? null,
             ])
             : 0.0;
-        if ($cost === null) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'Не удалось рассчитать стоимость доставки для этого города',
-            ], 422);
-        }
-
+        // Нерассчитанная доставка отдаётся как null, а не как 0 и не 422-й ошибкой:
+        // при 422 страница молча оставляла в итогах прежний ноль, и покупатель видел
+        // «доставка 0 ₽» там, где цену ещё нельзя узнать (адрес/пункт не указаны).
         return response()->json(['ok' => true] + $this->quotePayload($cart, $cost));
     }
 
@@ -190,17 +191,22 @@ class CheckoutController extends Controller
             ])
             : 0.0;
 
-        return $this->quotePayload($cart, $cost ?? 0.0);
+        return $this->quotePayload($cart, $cost);
     }
 
-    private function quotePayload(array $cart, float $shippingCost): array
+    /**
+     * @param  ?float  $shippingCost  null = стоимость доставки пока неизвестна
+     *                                (не указан адрес/пункт выдачи или перевозчик не ответил)
+     */
+    private function quotePayload(array $cart, ?float $shippingCost): array
     {
-        $totals = $this->discounts->totals($cart, $shippingCost);
+        $totals = $this->discounts->totals($cart, $shippingCost ?? 0.0);
 
         return [
             'subtotal' => $totals['subtotal'],
             'discount' => $totals['discount'],
-            'shipping_cost' => $totals['shipping'],
+            'shipping_cost' => $shippingCost === null ? null : $totals['shipping'],
+            'shipping_unknown' => $shippingCost === null,
             'gift_used' => $totals['gift_used'],
             'total' => $totals['total'],
             'coupon_code' => $totals['coupon']?->code,
@@ -271,25 +277,67 @@ class CheckoutController extends Controller
 
         $query = trim($data['q']);
 
-        // Подсказки городов берём у СДЭК всегда, когда его ключи заданы — даже если
-        // сам способ доставки СДЭК выключен: это просто справочник названий.
-        // У Яндекс Доставки автодополнения нет вовсе (её location/detect на «Мос»
-        // отвечает «Владимир»), а геокодер Яндекс.Карт наш ключ не принимает —
-        // он только для JS API. Выбранный город всё равно разрешает Яндекс: если
-        // он его не знает, расчёт вернёт «уточните город».
-        if ($this->cdek->isConfigured()) {
-            return response()->json(['cities' => $this->cdek->suggestCities($query)]);
+        // СДЭК дёргаем, только если он реально возит: раньше его справочник
+        // использовался всегда «просто как список названий», и выключенный
+        // перевозчик всё равно получал запрос на каждое нажатие клавиши.
+        $cdekIsUsed = ShippingMethod::where('is_enabled', true)
+            ->get()
+            ->contains(fn (ShippingMethod $method) => $method->provider() === 'cdek');
+
+        if ($cdekIsUsed && $this->cdek->isConfigured()) {
+            $cities = $this->cdek->suggestCities($query);
+
+            // Пустой ответ здесь — это, как правило, не «нет такого города», а
+            // отвалившийся ключ или недоступный API: молча оставлять человека без
+            // подсказок из-за этого не стоит, ниже есть другие источники.
+            if ($cities !== []) {
+                return response()->json(['cities' => $cities]);
+            }
         }
 
-        // Ключей СДЭК нет — остаётся справочник Яндекса. Он годится только для
-        // почти полностью введённого названия, поэтому это именно запасной путь.
+        // Иначе — тот же источник, что и у подсказок улиц (OSM). Город всё равно
+        // разрешает перевозчик: если он его не знает, расчёт вернёт «уточните город».
+        $cities = $this->addressSuggest->suggestCities($query);
+
+        if ($cities !== []) {
+            return response()->json(['cities' => $cities]);
+        }
+
+        // Последний рубеж — справочник Яндекса. Он годится только для почти
+        // полностью введённого названия, поэтому это именно запасной путь.
         $cities = collect($this->yandexDelivery->detectLocation($query))
             ->map(fn ($variant) => explode(',', $variant['address'])[0])
             ->unique()
             ->values()
+            ->map(fn ($city) => ['city' => $city, 'label' => $city])
             ->all();
 
         return response()->json(['cities' => $cities]);
+    }
+
+    /**
+     * AJAX: подсказки улицы и дома для доставки курьером.
+     *
+     * Нужны прежде всего Яндекс Доставке до двери — она считает цену по конкретному
+     * адресу, и опечатка в улице оборачивается «не удалось рассчитать доставку».
+     */
+    public function streets(Request $request)
+    {
+        $data = $request->validate([
+            'q' => ['required', 'string', 'max:100'],
+            'city' => ['nullable', 'string', 'max:100'],
+            // Заполнено, когда подсказка нужна полю «Дом»: улица уже выбрана и
+            // подсказывать надо только номера на ней.
+            'street' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $city = $data['city'] ?? null;
+
+        $addresses = ($data['street'] ?? '') !== ''
+            ? $this->addressSuggest->suggestHouses($data['street'], $data['q'], $city, numbersOnly: true)
+            : $this->addressSuggest->suggest($data['q'], $city);
+
+        return response()->json(['addresses' => $addresses]);
     }
 
     /** AJAX: пункты выдачи СДЭК в выбранном городе (нужны его виджету карты). */

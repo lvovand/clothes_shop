@@ -77,13 +77,6 @@
                             <label class="amount-label">
                                 <input type="text" name="amount" placeholder="от 3000 до 150000" value="{{ old('amount') }}" required>
                             </label>
-                            {{-- Стартовая сумма — минимальный номинал: иначе при пустом поле
-                                 бейджа не было бы вовсе и его нечего было бы обновлять. --}}
-                            @include('partials.yandex-pay-badge', [
-                                'amount' => old('amount') ?: 3000,
-                                'type' => 'bnpl',
-                                'size' => 'm',
-                            ])
                         </div>
                         <div class="form-gift-label">
                             <p>Данные получателя:</p>
@@ -109,9 +102,19 @@
                                     <p>Способ оплаты:</p>
                                     <ul class="col-03">
                                         @foreach($paymentMethods as $method)
-                                            <li class="wc_payment_method">
+                                            <li class="wc_payment_method payment_method_{{ $method->key }}">
                                                 <input type="radio" class="input-radio" name="payment_method" id="gift_payment_{{ $method->key }}" value="{{ $method->key }}" {{ $loop->first ? 'checked' : '' }}>
                                                 <label for="gift_payment_{{ $method->key }}">{{ $method->name }}</label>
+                                                {{-- Как на оформлении заказа: у способов Яндекса свой официальный
+                                                     бейдж — платёж по Сплиту и кешбэк считает он сам, сумма
+                                                     обновляется скриптом ниже при вводе номинала. --}}
+                                                @if(in_array($method->key, ['yandex_pay', 'yandex_split'], true))
+                                                    @include('partials.yandex-pay-badge', [
+                                                        'amount' => old('amount') ?: 3000,
+                                                        'type' => $method->key === 'yandex_split' ? 'bnpl' : 'cashback',
+                                                        'size' => 'm',
+                                                    ])
+                                                @endif
                                             </li>
                                         @endforeach
                                     </ul>
