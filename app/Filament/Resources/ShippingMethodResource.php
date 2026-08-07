@@ -87,6 +87,10 @@ class ShippingMethodResource extends Resource
                     ->label('Код тарифа CDEK')
                     ->helperText('Только для способов CDEK: 136 — пункт выдачи, 137 — курьер до двери.')
                     ->numeric(),
+                Forms\Components\TextInput::make('config.delivery_days')
+                    ->label('Примерный срок доставки')
+                    ->placeholder('1–2 дня')
+                    ->helperText('Показывается покупателю в итогах заказа. Нужен только способам без интеграции (самовывоз, свой курьер): у СДЭК и Яндекса срок приходит из их расчёта. Пусто — срок не показываем.'),
                 Forms\Components\TextInput::make('sort_order')
                     ->label('Порядок')
                     ->numeric()

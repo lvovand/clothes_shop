@@ -33,35 +33,107 @@ class OrderService
      */
     public function calculateShippingCost(ShippingMethod $method, array $cart, ?string $city = null, array $destination = []): ?float
     {
-        $subtotal = $this->subtotalFor($cart);
-
-        if ($method->free_from_amount !== null && $subtotal >= (float) $method->free_from_amount) {
-            return 0.0;
-        }
-
-        return match ($method->provider()) {
-            'cdek' => $this->cdekCost($method, $cart, $city),
-            'yandex' => $this->yandexCost($method, $cart, $city, $destination),
-            default => (float) ($method->flat_cost ?? 0),
-        };
+        return $this->calculateShipping($method, $cart, $city, $destination)['cost'];
     }
 
-    private function cdekCost(ShippingMethod $method, array $cart, ?string $city): ?float
+    /**
+     * Стоимость доставки и её примерный срок. Срок перевозчики отдают тем же
+     * ответом, что и цену, поэтому отдельных запросов он не стоит.
+     *
+     * @param  array<int,int>  $cart  variant_id => qty
+     * @param  array{pvz_code?: ?string, address?: ?string}  $destination
+     * @return array{cost: ?float, days: ?string}
+     */
+    public function calculateShipping(ShippingMethod $method, array $cart, ?string $city = null, array $destination = []): array
+    {
+        $subtotal = $this->subtotalFor($cart);
+        $free = $method->free_from_amount !== null && $subtotal >= (float) $method->free_from_amount;
+
+        // Бесплатная доставка — это про цену, а не про скорость: срок всё равно
+        // нужен, поэтому считаем его и здесь, а цену просто обнуляем.
+        $result = match ($method->provider()) {
+            'cdek' => $this->cdekShipping($method, $cart, $city),
+            'yandex' => $this->yandexShipping($method, $cart, $city, $destination),
+            default => [
+                'cost' => (float) ($method->flat_cost ?? 0),
+                // У своих способов интеграции нет — срок задаётся в админке.
+                'days' => $this->ownDays($method),
+            ],
+        };
+
+        if ($free && $result['cost'] !== null) {
+            $result['cost'] = 0.0;
+        }
+
+        return $result;
+    }
+
+    /** @return array{cost: ?float, days: ?string} */
+    private function cdekShipping(ShippingMethod $method, array $cart, ?string $city): array
     {
         if (! $city) {
-            return (float) ($method->flat_cost ?? 0);
+            return ['cost' => (float) ($method->flat_cost ?? 0), 'days' => $this->ownDays($method)];
         }
 
         $cityCode = $this->cdek->findCityCode($city);
         if (! $cityCode) {
-            return null;
+            return ['cost' => null, 'days' => null];
         }
 
         $weight = $this->totalWeightGrams($cart);
         $tariffCode = $method->config['tariff_code'] ?? null;
         $tariffs = $this->cdek->calculateTariffs(['code' => $cityCode], [$tariffCode], $weight);
+        $tariff = $tariffs[0] ?? null;
 
-        return $tariffs[0]['delivery_sum'] ?? null;
+        return [
+            'cost' => $tariff['delivery_sum'] ?? null,
+            // СДЭК отдаёт срок сразу в рабочих днях — это ровно то, что нужно показать.
+            'days' => $this->daysLabel($tariff['period_min'] ?? null, $tariff['period_max'] ?? null),
+        ];
+    }
+
+    /** Срок, вписанный в способ доставки руками («Способы доставки» в админке). */
+    private function ownDays(ShippingMethod $method): ?string
+    {
+        $days = trim((string) ($method->config['delivery_days'] ?? ''));
+
+        return $days !== '' ? $days : null;
+    }
+
+    /**
+     * «1 день», «1–2 дня», «до 5 дней». Числа приходят от перевозчика, склонение
+     * считаем сами: готового русского плюрала для этого в проекте нет.
+     */
+    private function daysLabel(?int $min, ?int $max): ?string
+    {
+        $min = $min !== null ? max(1, $min) : null;
+        $max = $max !== null ? max(1, $max) : null;
+
+        if ($min === null && $max === null) {
+            return null;
+        }
+
+        if ($min === null || $max === null || $min === $max) {
+            $value = $min ?? $max;
+
+            return $value.' '.$this->pluralDays($value);
+        }
+
+        // Склонение — по большему числу: «1–2 дня», «2–5 дней».
+        return $min.'–'.$max.' '.$this->pluralDays($max);
+    }
+
+    private function pluralDays(int $value): string
+    {
+        $mod100 = $value % 100;
+        $mod10 = $value % 10;
+
+        return match (true) {
+            $mod100 >= 11 && $mod100 <= 14 => 'дней',
+            $mod10 === 1 => 'день',
+            $mod10 >= 2 && $mod10 <= 4 => 'дня',
+            default => 'дней',
+        };
     }
 
     /**
@@ -69,19 +141,19 @@ class OrderService
      * (его идентификатор) либо адрес получателя. Пока покупатель их не указал,
      * посчитать нечего — возвращаем null, и чекаут просит уточнить данные.
      */
-    private function yandexCost(ShippingMethod $method, array $cart, ?string $city, array $destination): ?float
+    private function yandexShipping(ShippingMethod $method, array $cart, ?string $city, array $destination): array
     {
         $to = [];
 
         if ($method->needsPickupPoint()) {
             if (empty($destination['pvz_code'])) {
-                return null;
+                return ['cost' => null, 'days' => null];
             }
             $to['point_id'] = $destination['pvz_code'];
         } else {
             $address = trim(implode(', ', array_filter([$city, $destination['address'] ?? null])));
             if ($address === '') {
-                return null;
+                return ['cost' => null, 'days' => null];
             }
             $to['address'] = $address;
         }
@@ -93,7 +165,36 @@ class OrderService
             $this->yandexDims(),
         );
 
-        return $quote['cost'] ?? null;
+        return [
+            'cost' => $quote['cost'] ?? null,
+            'days' => $this->yandexDays($quote['delivery_min'] ?? null, $quote['delivery_max'] ?? null),
+        ];
+    }
+
+    /**
+     * Яндекс отдаёт не количество дней, а сам интервал доставки в UTC
+     * («2026-08-16T07:00:00.000000Z») — переводим его в дни от сегодняшней даты.
+     */
+    private function yandexDays(?string $from, ?string $to): ?string
+    {
+        $days = function (?string $value): ?int {
+            if (! $value) {
+                return null;
+            }
+
+            try {
+                // Считаем по календарным датам в часовом поясе магазина: разница
+                // в часах дала бы «2 дня» для доставки завтра утром.
+                return (int) now()->startOfDay()->diffInDays(
+                    \Illuminate\Support\Carbon::parse($value)->setTimezone(config('app.timezone'))->startOfDay(),
+                    absolute: false
+                );
+            } catch (\Throwable) {
+                return null;
+            }
+        };
+
+        return $this->daysLabel($days($from), $days($to));
     }
 
     /** @return array<int, array{name: string, article: string, qty: int, price: float}> */

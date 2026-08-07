@@ -51,9 +51,10 @@ class CheckoutController extends Controller
         // умолчанию (первый в списке) — иначе страница показывала бы «доставка: —»
         // до первого клика, чего у эталона нет.
         $selectedMethod = $shippingMethods->first();
-        $shippingCost = $selectedMethod
-            ? $this->orders->calculateShippingCost($selectedMethod, $cart, old('city'))
-            : 0.0;
+        $shipping = $selectedMethod
+            ? $this->orders->calculateShipping($selectedMethod, $cart, old('city'))
+            : ['cost' => 0.0, 'days' => null];
+        $shippingCost = $shipping['cost'];
 
         return view('checkout', [
             'title' => 'Оформление заказа',
@@ -64,6 +65,7 @@ class CheckoutController extends Controller
             // Способ по умолчанию может требовать адрес/пункт выдачи, которых ещё нет —
             // тогда в строке доставки прочерк, а не ноль (ноль читается как «бесплатно»).
             'shippingUnknown' => $shippingCost === null,
+            'shippingDays' => $shipping['days'],
             'yandexMapApiKey' => SiteSetting::get('yandex_map_api_key', config('services.cdek.yandex_map_api_key')),
             // Онлайн-эквайеры берутся из админки («Настройки → Способы оплаты»),
             // оплата при получении живёт отдельно: она не платёжный шлюз, а признак
@@ -96,16 +98,17 @@ class CheckoutController extends Controller
             ? ShippingMethod::where('code', $data['shipping_method'])->first()
             : null;
 
-        $cost = $method
-            ? $this->orders->calculateShippingCost($method, $cart, $data['city'] ?? null, [
+        $shipping = $method
+            ? $this->orders->calculateShipping($method, $cart, $data['city'] ?? null, [
                 'pvz_code' => $data['pvz_code'] ?? null,
                 'address' => $data['address'] ?? null,
             ])
-            : 0.0;
+            : ['cost' => 0.0, 'days' => null];
+        $cost = $shipping['cost'];
         // Нерассчитанная доставка отдаётся как null, а не как 0 и не 422-й ошибкой:
         // при 422 страница молча оставляла в итогах прежний ноль, и покупатель видел
         // «доставка 0 ₽» там, где цену ещё нельзя узнать (адрес/пункт не указаны).
-        return response()->json(['ok' => true] + $this->quotePayload($cart, $cost));
+        return response()->json(['ok' => true] + $this->quotePayload($cart, $cost, $shipping['days']));
     }
 
     /** Применить или снять промокод (пустой код = снять). */
@@ -184,21 +187,21 @@ class CheckoutController extends Controller
         $method = isset($data['shipping_method'])
             ? ShippingMethod::where('code', $data['shipping_method'])->first()
             : null;
-        $cost = $method
-            ? $this->orders->calculateShippingCost($method, $cart, $data['city'] ?? null, [
+        $shipping = $method
+            ? $this->orders->calculateShipping($method, $cart, $data['city'] ?? null, [
                 'pvz_code' => $data['pvz_code'] ?? null,
                 'address' => $data['address'] ?? null,
             ])
-            : 0.0;
+            : ['cost' => 0.0, 'days' => null];
 
-        return $this->quotePayload($cart, $cost);
+        return $this->quotePayload($cart, $shipping['cost'], $shipping['days']);
     }
 
     /**
      * @param  ?float  $shippingCost  null = стоимость доставки пока неизвестна
      *                                (не указан адрес/пункт выдачи или перевозчик не ответил)
      */
-    private function quotePayload(array $cart, ?float $shippingCost): array
+    private function quotePayload(array $cart, ?float $shippingCost, ?string $shippingDays = null): array
     {
         $totals = $this->discounts->totals($cart, $shippingCost ?? 0.0);
 
@@ -207,6 +210,8 @@ class CheckoutController extends Controller
             'discount' => $totals['discount'],
             'shipping_cost' => $shippingCost === null ? null : $totals['shipping'],
             'shipping_unknown' => $shippingCost === null,
+            // Примерный срок от перевозчика («1–2 дня»); null — показывать нечего.
+            'shipping_days' => $shippingDays,
             'gift_used' => $totals['gift_used'],
             'total' => $totals['total'],
             'coupon_code' => $totals['coupon']?->code,

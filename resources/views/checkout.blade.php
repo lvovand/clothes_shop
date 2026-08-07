@@ -287,7 +287,9 @@
                                         <p><span><span class="woocommerce-Price-amount amount" id="discount-display"><bdi>−{{ $price($totals['discount']) }}&nbsp;<span class="woocommerce-Price-currencySymbol">&#8381;</span></bdi></span></span></p>
                                     </div>
                                     <div class="review-pay-order-item review-pay-order-item_shipping">
-                                        <p>ДОСТАВКА:</p>
+                                        {{-- Примерный срок от перевозчика: приходит тем же ответом, что и цена.
+                                             У способов без интеграции берётся из поля в админке. --}}
+                                        <p>ДОСТАВКА:<span class="shipping-days" id="shipping-days" @if(empty($shippingDays)) style="display: none;" @endif>{{ $shippingDays }}</span></p>
                                         <p><span><span class="woocommerce-Price-amount amount" id="shipping-display"><bdi>@if($shippingUnknown ?? false)—@else{{ $price($totals['shipping']) }}&nbsp;<span class="woocommerce-Price-currencySymbol">&#8381;</span>@endif</bdi></span></span></p>
                                     </div>
                                     <div class="review-pay-order-item review-pay-order-item_gift" @if($totals['gift_used'] <= 0) style="display: none;" @endif>
@@ -489,9 +491,17 @@
         }
     }
 
+    function setShippingDays(days) {
+        const box = document.getElementById('shipping-days');
+        if (!box) return;
+        box.textContent = days || '';
+        box.style.display = days ? '' : 'none';
+    }
+
     function applyTotals(t) {
         setAmount('subtotal-display', t.subtotal, false);
         setAmount('shipping-display', t.shipping_cost, false);
+        setShippingDays(t.shipping_days);
         setShippingUnknown(!!t.shipping_unknown);
         setAmount('discount-display', t.discount, true);
         setAmount('gift-display', t.gift_used, true);
