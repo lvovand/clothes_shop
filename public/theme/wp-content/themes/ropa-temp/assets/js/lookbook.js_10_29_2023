@@ -1,0 +1,68 @@
+//    slider lookbook
+
+if ($('.inner-block_tabs').length) {
+    let bigSwipers = [];
+    let smallSwipers = [];
+
+// Добавляем класс "active" первому элементу при загрузке страницы
+    document.querySelector('.tab-content:first-child').classList.add('active');
+
+// Функция для инициализации слайдеров
+    function initSliders() {
+        let activeTabContent = document.querySelector('.tab-content.active');
+        if (activeTabContent) {
+            let bigSlider = activeTabContent.querySelector('.tab-big-slider');
+            let smallSlider = activeTabContent.querySelector('.tab-small-slider');
+
+            if (bigSlider && smallSlider) {
+                let bigSwiper = new Swiper(bigSlider, {
+                    thumbs: {
+                        swiper: smallSlider,
+                    },
+                    autoHeight: true,
+
+                    speed: 600,
+                });
+                bigSwipers.push(bigSwiper);
+
+                let smallSwiper = new Swiper(smallSlider, {
+                    slidesPerView: 4
+                });
+                smallSwipers.push(smallSwiper);
+            }
+        }
+    }
+
+    window.addEventListener('load', function () {
+        initSliders();
+    });
+
+    var tabsLinks = document.querySelectorAll('.tabs-link-element');
+
+    tabsLinks.forEach(function (tabsLink, index) {
+        tabsLink.addEventListener('click', function () {
+            // Убираем класс "active" у всех элементов
+            document.querySelectorAll('.tab-content').forEach(function (tabContent) {
+                tabContent.classList.remove('active');
+            });
+
+            // Добавляем класс "active" только к текущему элементу
+            var tabContent = document.querySelector('.tab-content:nth-child(' + (index + 1) + ')');
+            if (tabContent) {
+                tabContent.classList.add('active');
+            }
+            initSliders();
+        });
+    });
+}
+
+//    slider lookbook END
+
+// Лук бук мобилка - модалка
+
+$('body').on('click', '.tab-btn-mobile', function (e) {
+    e.stopPropagation();
+    let tabsList = $('.max-content.tabs-list');
+    tabsList.toggleClass('active');
+});
+

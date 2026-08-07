@@ -1,0 +1,50 @@
+/**
+ * Поведение, общее для всех страниц магазина. Подключается после main.js эталона,
+ * чтобы можно было опираться на его обработчики и при необходимости их снимать.
+ *
+ * Избранное: у эталона это обычная форма с перезагрузкой страницы. Разметку
+ * сохраняем как есть (форма + кнопка .wish-list-form__btn с картинкой-сердцем),
+ * но отправляем без перезагрузки и меняем иконку на закрашенную. Иконку берём
+ * подменой имени файла в текущем src — так путь к теме не нужно знать скрипту.
+ */
+jQuery(function ($) {
+    const IDLE = 'icon-heart.svg';
+    const ACTIVE = 'icon-col-heart.svg';
+
+    function setIcon($img, added) {
+        const src = $img.attr('src');
+        $img.attr('src', added ? src.replace(IDLE, ACTIVE) : src.replace(ACTIVE, IDLE));
+    }
+
+    $(document).on('submit', '[data-wishlist-form]', function (e) {
+        e.preventDefault();
+
+        const $form = $(this);
+        const productId = $form.find('input[name="product_id"]').val();
+
+        $.post({
+            url: $form.attr('action'),
+            data: $form.serialize(),
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+            },
+        }).done(function (response) {
+            // Один товар может быть на странице несколькими формами (в карточке
+            // товара — в галерее и в мобильной плашке, в сетке — если попал дважды),
+            // поэтому меняем иконку у всех форм этого товара.
+            $('[data-wishlist-form]').each(function () {
+                if ($(this).find('input[name="product_id"]').val() === productId) {
+                    setIcon($(this).find('img'), response.added);
+                }
+            });
+
+            $('.header-buttons__wishlist span').toggleClass('active', response.count > 0);
+
+            // На странице «Избранное» убранный товар должен уйти из сетки.
+            if (! response.added && $form.closest('[data-wishlist-page]').length) {
+                $form.closest('.product-item').remove();
+            }
+        });
+    });
+});

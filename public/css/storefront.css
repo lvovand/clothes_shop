@@ -1,0 +1,293 @@
+/*
+    Наши точечные правки поверх стилей эталона. Всё, что здесь лежит, — это
+    осознанные отступления от донора; вёрстка и остальной CSS переносятся
+    дословно, свои стили сюда добавляются только с объяснением, зачем.
+*/
+
+/*
+    Цветовые свотчи. Тема жёстко задаёт обёртке цвета 24×24 и круглую форму —
+    расчёт на цветной кружок. Но названия цветов у нас (как и у донора) выводятся
+    текстовой плашкой: она шире обёртки, центрируется по ней и наезжает слева на
+    подпись «Цвет:» — «ЦВЕ▉PURPLE▉». У донора этот дефект виден так же, а на
+    прежнем сайте ropaworld.ru его уже правили ровно этим правилом — переносим его.
+*/
+div[data-attribute_name="attribute_pa_color"] .swatch-item-wrapper:has(.swatch-type-label) {
+    width: auto;
+    height: auto;
+    border-radius: 0;
+}
+
+/*
+    Поля адреса у последнего способа доставки. У эталона есть правило
+    `ul.col-01 li:last-child .address-field_street|_house|_room { display:none }` —
+    оно привязано к ПОЗИЦИИ, у донора последним в списке стоял способ, которому
+    адрес не нужен. У нас последний — «Курьер по Москве», ему адрес обязателен,
+    поэтому правило отменяется именно внутри блока адреса.
+*/
+ul.col-01 li:last-child .block-fake-adress .address-field_street,
+ul.col-01 li:last-child .block-fake-adress .address-field_house,
+ul.col-01 li:last-child .block-fake-adress .address-field_room {
+    display: flex !important;
+}
+
+/*
+    Кнопка «Показать предыдущие» над сеткой каталога. Появляется только при заходе
+    по прямой ссылке ?page=2 и дальше — иначе показывать нечего (см. комментарий
+    у the_lmp_js_data в layouts/app.blade.php). У донора эта кнопка выключена,
+    поэтому её вида в эталоне нет; берём чёрную кнопку темы (.btn-black), а здесь
+    задаём только раскладку: сама .btn-black растянута на 100% ширины.
+*/
+.lmp_load_more_button.br_lmp_prev_settings {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 30px;
+}
+
+.lmp_load_more_button.br_lmp_prev_settings .lmp_button {
+    /*
+        Флекс задаётся здесь заново: у плагина есть своё
+        `.lmp_load_more_button .lmp_button { display: inline-block }` — оно
+        специфичнее, чем `display:flex` темы у `.btn-black`, поэтому надпись
+        не центрировалась по вертикали, а ложилась в верх бокса по line-height.
+    */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    min-width: 320px;
+    padding: 0 40px;
+    /* Метрики текста — как у кнопки «в корзину» темы (.btn.add-cart-link),
+       а не 22px, которые плагин задаёт своей кнопке. */
+    font-size: 20px;
+    font-weight: 400;
+    line-height: 23px;
+    text-decoration: none;
+}
+
+@media (max-width: 767px) {
+    .lmp_load_more_button.br_lmp_prev_settings .lmp_button {
+        min-width: 0;
+        width: 100%;
+    }
+}
+
+/* Оплата при получении доступна не для каждого способа доставки, и скрипт
+   страницы помечает недоступный пункт классом .is-disabled. У темы состояния
+   «выключено» нет вообще — без этого правила пункт выглядел обычным, но не
+   нажимался. Пункт остаётся на месте (иначе список прыгает при переключении
+   доставки), но заметно гаснет и показывает, что кликать бесполезно. */
+.wc_payment_method.is-disabled {
+    opacity: .35;
+}
+
+.wc_payment_method.is-disabled label {
+    cursor: not-allowed;
+}
+
+/* Бейджи Яндекс Пэй рядом со способами оплаты (их у эталона нет вообще).
+   Встают под подписью способа, с тем же левым отступом, что и текст лейбла —
+   у темы он задан отступом под кружок радиокнопки. */
+.wc_payment_method .payment-badge {
+    display: block;
+    margin: 8px 0 0 30px;
+}
+
+.wc_payment_method.is-disabled .payment-badge {
+    display: none;
+}
+
+/* Список пунктов выдачи Яндекс Доставки на оформлении. У Яндекса нет готового
+   виджета карты для сайта (в отличие от СДЭК), поэтому пункты выбираются списком —
+   темой такой блок не предусмотрен, стили наши. */
+.yandex-pvz {
+    margin-top: 10px;
+    border: 1px solid #0c0c0c;
+    background: #fff;
+}
+
+.yandex-pvz__search {
+    width: 100%;
+    border: none;
+    border-bottom: 1px solid #0c0c0c;
+    padding: 10px 12px;
+}
+
+.yandex-pvz__list {
+    max-height: 260px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.yandex-pvz__list li {
+    padding: 10px 12px;
+    border-bottom: 1px solid #ececec;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.yandex-pvz__list li:hover {
+    background: #f6f5f1;
+}
+
+.yandex-pvz__list li strong {
+    font-size: 13px;
+    text-transform: uppercase;
+}
+
+.yandex-pvz__list li span {
+    font-size: 12px;
+    color: #6b6b6b;
+}
+
+.yandex-pvz__empty {
+    cursor: default;
+    color: #6b6b6b;
+}
+
+/* Модалка выбора пункта выдачи Яндекс Доставки: карта + список.
+   У Яндекс Доставки нет готового виджета для сайта (у СДЭК он есть), поэтому
+   карта наша — на Яндекс.Картах, с тем же ключом, что и виджет СДЭК. */
+.ymap-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(12, 12, 12, .55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.ymap-modal__box {
+    background: #fff;
+    border: 1px solid #0c0c0c;
+    width: min(1100px, 100%);
+    height: min(680px, 100%);
+    display: flex;
+    flex-direction: column;
+}
+
+.ymap-modal__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid #0c0c0c;
+}
+
+.ymap-modal__title {
+    text-transform: uppercase;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.ymap-modal__close {
+    font-size: 18px;
+    line-height: 1;
+    color: #0c0c0c;
+}
+
+.ymap-modal__body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+.ymap-modal__map {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.ymap-modal__side {
+    width: 320px;
+    border-left: 1px solid #0c0c0c;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.ymap-modal__search {
+    border: none;
+    border-bottom: 1px solid #0c0c0c;
+    padding: 10px 12px;
+}
+
+.ymap-modal__list {
+    flex: 1;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ymap-modal__list li {
+    padding: 10px 12px;
+    border-bottom: 1px solid #ececec;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ymap-modal__list li:hover {
+    background: #f6f5f1;
+}
+
+.ymap-modal__list li strong {
+    font-size: 13px;
+    text-transform: uppercase;
+}
+
+.ymap-modal__list li span {
+    font-size: 12px;
+    color: #6b6b6b;
+}
+
+.ymap-choose {
+    margin-top: 8px;
+    background: #0c0c0c;
+    color: #fff;
+    border: none;
+    padding: 8px 14px;
+    cursor: pointer;
+    text-transform: uppercase;
+    font-size: 12px;
+}
+
+@media (max-width: 767px) {
+    .ymap-modal {
+        padding: 0;
+    }
+
+    .ymap-modal__box {
+        width: 100%;
+        height: 100%;
+        border: none;
+    }
+
+    .ymap-modal__body {
+        flex-direction: column;
+    }
+
+    .ymap-modal__map {
+        flex: 0 0 55%;
+    }
+
+    .ymap-modal__side {
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid #0c0c0c;
+        flex: 1 1 auto;
+    }
+}
+
+.ymap-modal__note {
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #a15c00;
+    border-bottom: 1px solid #ececec;
+}
