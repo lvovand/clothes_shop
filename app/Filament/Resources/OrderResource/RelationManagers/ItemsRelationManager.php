@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\OrderResource\RelationManagers;
 
+use App\Models\Warehouse;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -36,6 +37,18 @@ class ItemsRelationManager extends RelationManager
                 Tables\Columns\TextColumn::make('qty')->label('Кол-во'),
                 Tables\Columns\TextColumn::make('unit_price')->label('Цена')->money('rub'),
                 Tables\Columns\TextColumn::make('line_total')->label('Сумма')->money('rub'),
+                Tables\Columns\TextColumn::make('stock_allocation')
+                    ->label('Откуда отгружать')
+                    // Позиция может разойтись по двум складам, если на первом не хватило.
+                    ->formatStateUsing(function ($state) {
+                        $names = Warehouse::pluck('name', 'id');
+                        $parts = collect((array) $state)
+                            ->map(fn ($qty, $id) => ($names[$id] ?? 'Склад #'.$id).': '.$qty.' шт.')
+                            ->implode(', ');
+
+                        return $parts ?: '—';
+                    })
+                    ->wrap(),
             ])
             ->headerActions([
                 Tables\Actions\CreateAction::make(),

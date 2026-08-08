@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Variant extends Model
 {
@@ -30,6 +31,17 @@ class Variant extends Model
         return $this->belongsToMany(AttributeValue::class, 'variant_attribute_values');
     }
 
+    public function stocks(): HasMany
+    {
+        return $this->hasMany(VariantStock::class);
+    }
+
+    /** Остаток на конкретном складе. */
+    public function stockAt(int $warehouseId): int
+    {
+        return (int) $this->stocks->firstWhere('warehouse_id', $warehouseId)?->qty;
+    }
+
     public function currentPrice(): float
     {
         return (float) ($this->sale_price ?? $this->regular_price);
@@ -40,6 +52,10 @@ class Variant extends Model
         return $this->sale_price !== null && (float) $this->sale_price < (float) $this->regular_price;
     }
 
+    /**
+     * Есть ли товар хоть на одном складе. `stock_qty` — суммарный кеш по складам,
+     * его пересчитывает App\Services\StockService (руками не менять).
+     */
     public function inStock(): bool
     {
         return $this->stock_qty > 0;

@@ -6,9 +6,11 @@ use App\Models\Coupon;
 use App\Models\GiftCertificate;
 use App\Models\Order;
 use App\Models\ShippingMethod;
+use App\Models\SiteSetting;
 use App\Models\Variant;
 use App\Services\Cdek\CdekClient;
 use App\Services\YandexDelivery\YandexDeliveryClient;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -17,8 +19,8 @@ class OrderService
     public function __construct(
         private readonly CdekClient $cdek,
         private readonly YandexDeliveryClient $yandexDelivery,
-    ) {
-    }
+        private readonly StockService $stock,
+    ) {}
 
     /**
      * @param  array<int,int>  $cart  variant_id => qty
@@ -186,7 +188,7 @@ class OrderService
                 // Считаем по календарным датам в часовом поясе магазина: разница
                 // в часах дала бы «2 дня» для доставки завтра утром.
                 return (int) now()->startOfDay()->diffInDays(
-                    \Illuminate\Support\Carbon::parse($value)->setTimezone(config('app.timezone'))->startOfDay(),
+                    Carbon::parse($value)->setTimezone(config('app.timezone'))->startOfDay(),
                     absolute: false
                 );
             } catch (\Throwable) {
@@ -228,10 +230,10 @@ class OrderService
     private function yandexDims(): array
     {
         return [
-            'weight' => (int) (\App\Models\SiteSetting::get('yandex_delivery_weight') ?: 500),
-            'dx' => (int) (\App\Models\SiteSetting::get('yandex_delivery_dx') ?: 30),
-            'dy' => (int) (\App\Models\SiteSetting::get('yandex_delivery_dy') ?: 25),
-            'dz' => (int) (\App\Models\SiteSetting::get('yandex_delivery_dz') ?: 10),
+            'weight' => (int) (SiteSetting::get('yandex_delivery_weight') ?: 500),
+            'dx' => (int) (SiteSetting::get('yandex_delivery_dx') ?: 30),
+            'dy' => (int) (SiteSetting::get('yandex_delivery_dy') ?: 25),
+            'dz' => (int) (SiteSetting::get('yandex_delivery_dz') ?: 10),
         ];
     }
 
@@ -291,7 +293,12 @@ class OrderService
                 if (! $variant || ! $variant->inStock()) {
                     continue;
                 }
-                $qty = min($qty, $variant->stock_qty);
+                // Продаём не больше, чем реально лежит на складах, доступных
+                // этому способу доставки: у самовывоза это только склад выдачи.
+                $qty = min($qty, $this->stock->available($variant->id, $shippingMethod));
+                if ($qty <= 0) {
+                    continue;
+                }
                 $unitPrice = $variant->currentPrice();
                 $lineTotal = $unitPrice * $qty;
                 $subtotal += $lineTotal;
@@ -355,8 +362,11 @@ class OrderService
 
             foreach ($lineItems as $item) {
                 $order->items()->create($item);
-                Variant::where('id', $item['variant_id'])->decrement('stock_qty', $item['qty']);
             }
+
+            // Списание идёт через склад: раскладка по складам пишется в позицию
+            // заказа, чтобы отмена вернула единицы туда же, откуда взяли.
+            $this->stock->allocateForOrder($order->load('items'), $shippingMethod);
 
             $coupon?->increment('used_count');
 

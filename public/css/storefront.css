@@ -465,3 +465,31 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
     text-transform: none;
     white-space: nowrap;
 }
+
+/* Недоступный способ доставки (сейчас это самовывоз, когда товара нет на складе
+   выдачи). У эталона такого состояния нет: там способы всегда кликабельны —
+   гасим сами, чтобы покупатель видел причину, а не молча неработающую строку. */
+.shipping-method--disabled {
+    opacity: .45;
+}
+
+.shipping-method--disabled label {
+    cursor: not-allowed;
+}
+
+/* Причина отказа при оформлении (самовывоза нет, доставка не посчиталась, не
+   заполнено поле). У эталона такого блока нет: там сообщения рисовал плагин
+   WooCommerce, а класс .woocommerce-error тема прячет display:none !important. */
+.checkout-errors {
+    margin: 0 0 24px;
+    padding: 14px 18px;
+    list-style: none;
+    border: 1px solid #000;
+    background: #fff;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.checkout-errors li + li {
+    margin-top: 6px;
+}

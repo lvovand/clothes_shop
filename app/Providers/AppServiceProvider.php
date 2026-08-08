@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use App\Models\Order;
 use App\Models\SiteSetting;
 use App\Models\WishlistItem;
+use App\Observers\OrderObserver;
 use App\Services\Cdek\CdekClient;
 use App\Services\TBank\TBankClient;
 use App\Services\YandexDelivery\YandexDeliveryClient;
@@ -55,6 +57,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Возврат товара на склад при отмене/удалении заказа.
+        Order::observe(OrderObserver::class);
+
         // Admin-editable mail settings (Настройки → Почта) override the .env defaults,
         // same DB-first-then-env-fallback pattern as CDEK/T-Bank above. Guarded against
         // running before the first migration, since boot() fires for every artisan command.

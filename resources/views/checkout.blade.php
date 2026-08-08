@@ -55,6 +55,21 @@
                         <a class="btn add-cart-link" href="{{ route('catalog.all') }}">Вернуться в магазин</a>
                     </p>
                 @else
+                {{-- Оформление отвечает back()-ом с причиной отказа (самовывоз недоступен,
+                     оплата при получении не для этого способа, доставка не посчиталась), но
+                     показать её было негде — покупатель просто возвращался на ту же страницу. --}}
+                @if(session('error') || $errors->any())
+                    {{-- Класс темы .woocommerce-error не берём: у эталона он скрыт
+                         display:none !important, блок был бы невидим. --}}
+                    <ul class="checkout-errors" role="alert">
+                        @if(session('error'))
+                            <li>{{ session('error') }}</li>
+                        @endif
+                        @foreach($errors->all() as $message)
+                            <li>{{ $message }}</li>
+                        @endforeach
+                    </ul>
+                @endif
                 <form name="checkout" method="post" class="checkout woocommerce-checkout" action="{{ route('checkout.store') }}" enctype="multipart/form-data">
                     @csrf
                     <input type="hidden" name="pvz_code" id="pvz_code_input" value="">
@@ -122,18 +137,26 @@
 
                             <ul class="col-01">
                                 @foreach($shippingMethods as $method)
-                                    <li>
+                                    @php
+                                        // Самовывоз выключается, когда товара нет на складе выдачи:
+                                        // тот же расчёт уже сделан в контроллере ($pickupAvailable).
+                                        $methodDisabled = $method->kind() === 'pickup' && ! $pickupAvailable;
+                                    @endphp
+                                    <li @class(['shipping-method--disabled' => $methodDisabled])>
                                         <input type="radio" name="shipping_method" class="shipping_method"
                                                id="shipping_method_{{ $method->code }}" value="{{ $method->code }}"
                                                data-cod-allowed="{{ $method->cod_allowed ? '1' : '0' }}"
                                                data-needs-address="{{ in_array($method->code, $needsAddress, true) ? '1' : '0' }}"
                                                data-needs-pvz="{{ $method->needsPickupPoint() ? '1' : '0' }}"
-                                               {{ $loop->first ? 'checked' : '' }}>
+                                               @disabled($methodDisabled)
+                                               {{ $selectedMethod && $selectedMethod->code === $method->code ? 'checked' : '' }}>
                                         <label for="shipping_method_{{ $method->code }}">
                                             {{ $method->title }}
                                             <span>
                                                 <br>
-                                                @if($method->code === 'pickup')
+                                                @if($methodDisabled)
+                                                    <p class="gray-days">Недоступен: товара нет на складе самовывоза. Выберите доставку.</p>
+                                                @elseif($method->code === 'pickup')
                                                     <p class="pickup-title">{{ $method->config['address'] ?? '' }}</p>
                                                     @php
                                                         // Часы и телефон пункта правятся в админке: «Способы доставки» →

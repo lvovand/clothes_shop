@@ -13,10 +13,12 @@ class Order extends Model
         'shipping_method_id', 'shipping_address', 'shipping_cost',
         'payment_method', 'payment_status', 'subtotal', 'discount_total', 'coupon_code',
         'gift_certificate_code', 'gift_certificate_used', 'total', 'comment',
+        'stock_returned_at',
     ];
 
     protected $casts = [
         'shipping_address' => 'array',
+        'stock_returned_at' => 'datetime',
     ];
 
     public function shippingMethod(): BelongsTo

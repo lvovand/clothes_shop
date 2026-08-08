@@ -10,12 +10,14 @@ use App\Models\SiteSetting;
 use App\Models\Variant;
 use App\Services\Address\AddressSuggest;
 use App\Services\Cdek\CdekClient;
-use App\Services\YandexDelivery\YandexDeliveryClient;
 use App\Services\DiscountService;
 use App\Services\OrderService;
 use App\Services\ReceiptBuilder;
+use App\Services\StockService;
 use App\Services\TBank\TBankClient;
 use App\Services\Telegram\TelegramNotifier;
+use App\Services\YandexDelivery\YandexDeliveryClient;
+use App\Services\YandexDelivery\YandexDeliveryDispatcher;
 use App\Services\YandexPay\YandexPayClient;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -30,6 +32,7 @@ class CheckoutController extends Controller
         private readonly DiscountService $discounts,
         private readonly ReceiptBuilder $receipts,
         private readonly AddressSuggest $addressSuggest,
+        private readonly StockService $stock,
     ) {}
 
     public function index()
@@ -47,10 +50,15 @@ class CheckoutController extends Controller
 
         $shippingMethods = ShippingMethod::where('is_enabled', true)->orderBy('sort_order')->get();
 
+        // Самовывоз возможен, только если весь заказ лежит на складе с выдачей:
+        // товар из Оренбурга покупателю в Москве через прилавок не выдать.
+        $pickupAvailable = $this->stock->pickupCoversCart($cart);
+        $isDisabled = fn (ShippingMethod $method) => $method->kind() === 'pickup' && ! $pickupAvailable;
+
         // Суммы на первой отрисовке считаются для метода, который выбран по
-        // умолчанию (первый в списке) — иначе страница показывала бы «доставка: —»
+        // умолчанию (первый доступный) — иначе страница показывала бы «доставка: —»
         // до первого клика, чего у эталона нет.
-        $selectedMethod = $shippingMethods->first();
+        $selectedMethod = $shippingMethods->reject($isDisabled)->first();
         $shipping = $selectedMethod
             ? $this->orders->calculateShipping($selectedMethod, $cart, old('city'))
             : ['cost' => 0.0, 'days' => null];
@@ -61,6 +69,7 @@ class CheckoutController extends Controller
             'items' => $variants,
             'shippingMethods' => $shippingMethods,
             'selectedMethod' => $selectedMethod,
+            'pickupAvailable' => $pickupAvailable,
             'totals' => $this->discounts->totals($cart, $shippingCost ?? 0.0),
             // Способ по умолчанию может требовать адрес/пункт выдачи, которых ещё нет —
             // тогда в строке доставки прочерк, а не ноль (ноль читается как «бесплатно»).
@@ -105,6 +114,7 @@ class CheckoutController extends Controller
             ])
             : ['cost' => 0.0, 'days' => null];
         $cost = $shipping['cost'];
+
         // Нерассчитанная доставка отдаётся как null, а не как 0 и не 422-й ошибкой:
         // при 422 страница молча оставляла в итогах прежний ноль, и покупатель видел
         // «доставка 0 ₽» там, где цену ещё нельзя узнать (адрес/пункт не указаны).
@@ -240,11 +250,11 @@ class CheckoutController extends Controller
      * который не должен задерживать оформление. Ошибки только логируются и уходят
      * в Telegram, чтобы заказ не остался без доставки незамеченным.
      */
-    private function dispatchDelivery(\App\Models\Order $order): void
+    private function dispatchDelivery(Order $order): void
     {
         app()->terminating(function () use ($order) {
             try {
-                $result = app(\App\Services\YandexDelivery\YandexDeliveryDispatcher::class)->dispatch($order);
+                $result = app(YandexDeliveryDispatcher::class)->dispatch($order);
             } catch (\Throwable $e) {
                 Log::error('Yandex Delivery dispatch failed', ['order' => $order->id, 'error' => $e->getMessage()]);
 
@@ -252,9 +262,9 @@ class CheckoutController extends Controller
             }
 
             $quiet = [
-                \App\Services\YandexDelivery\YandexDeliveryDispatcher::REASON_NOT_YANDEX,
-                \App\Services\YandexDelivery\YandexDeliveryDispatcher::REASON_AUTO_OFF,
-                \App\Services\YandexDelivery\YandexDeliveryDispatcher::REASON_ALREADY,
+                YandexDeliveryDispatcher::REASON_NOT_YANDEX,
+                YandexDeliveryDispatcher::REASON_AUTO_OFF,
+                YandexDeliveryDispatcher::REASON_ALREADY,
             ];
 
             if (in_array($result['reason'] ?? '', $quiet, true)) {
@@ -475,6 +485,12 @@ class CheckoutController extends Controller
         // old site: cash-on-delivery is only ever valid for methods that allow it.
         if ($data['payment_method'] === 'cod' && ! $shippingMethod->cod_allowed) {
             return back()->withInput()->with('error', 'Оплата при получении недоступна для выбранного способа доставки');
+        }
+
+        // То же правило, что гасит радиокнопку на странице, но проверенное на сервере:
+        // выбор способа приходит из формы, ей верить нельзя.
+        if ($shippingMethod->kind() === 'pickup' && ! $this->stock->pickupCoversCart($cart)) {
+            return back()->withInput()->with('error', 'Самовывоз недоступен: товара нет на складе самовывоза. Выберите доставку.');
         }
 
         $shippingCost = $this->orders->calculateShippingCost($shippingMethod, $cart, $data['city'] ?? null, [

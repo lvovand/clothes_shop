@@ -9,7 +9,12 @@ class OrderItem extends Model
 {
     protected $fillable = [
         'order_id', 'variant_id', 'product_title_snapshot', 'variant_attrs_snapshot',
-        'qty', 'unit_price', 'line_total',
+        'qty', 'unit_price', 'line_total', 'stock_allocation',
+    ];
+
+    protected $casts = [
+        // [warehouse_id => qty] — с каких складов фактически списаны единицы.
+        'stock_allocation' => 'array',
     ];
 
     public function order(): BelongsTo
