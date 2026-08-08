@@ -80,10 +80,23 @@ class ShippingPaymentSettings extends Page implements HasForms
                     ->schema([
                         Forms\Components\TextInput::make('cdek_client_id')->label('Client ID'),
                         Forms\Components\TextInput::make('cdek_client_secret')->label('Client Secret')->password()->revealable(),
-                        Forms\Components\TextInput::make('cdek_sender_city_code')
-                            ->label('Код города отправления (СДЭК)')
-                            ->numeric()
-                            ->helperText('Код населённого пункта в справочнике СДЭК, откуда отправляются заказы. Москва — 44.'),
+                        // Хранится по-прежнему числовой код СДЭК (его требует API),
+                        // но вводится он поиском по названию: раньше владельцу
+                        // приходилось где-то узнавать, что Москва — это 44.
+                        Forms\Components\Select::make('cdek_sender_city_code')
+                            ->label('Город отправления (СДЭК)')
+                            ->searchable()
+                            ->getSearchResultsUsing(fn (string $search) => collect(
+                                app(\App\Services\Cdek\CdekClient::class)->suggestCities($search, 12)
+                            )->pluck('label', 'code')->all())
+                            ->getOptionLabelUsing(function ($value) {
+                                $city = app(\App\Services\Cdek\CdekClient::class)->cityByCode((int) $value);
+
+                                // Если справочник недоступен (нет ключей, API молчит) —
+                                // показываем хотя бы сохранённый код, а не пустое поле.
+                                return $city['label'] ?? 'Код '.$value;
+                            })
+                            ->helperText('Населённый пункт, откуда отправляются заказы. Начните вводить название — список подтянется из справочника СДЭК. Работает только когда заполнены Client ID и Client Secret выше.'),
                         Forms\Components\TextInput::make('yandex_map_api_key')
                             ->label('Ключ Яндекс.Карт (для виджета выбора ПВЗ)')
                             ->helperText('Нужен официальному виджету СДЭК для отрисовки карты на чекауте — ключ типа "JavaScript API и HTTP Геокодер" с сайта yandex.ru/maps-api, привязанный к домену сайта.'),

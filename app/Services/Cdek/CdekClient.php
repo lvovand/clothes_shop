@@ -197,4 +197,52 @@ class CdekClient
 
         return $response->json('0.code');
     }
+
+    /**
+     * Обратная сторона findCityCode: по коду вернуть человеческое название города.
+     * Нужна админке, чтобы в поле «Город отправления» показывать «Москва, Россия»
+     * вместо голого числа 44 (сохраняется по-прежнему код — его требует API).
+     *
+     * @return array{code: int, city: string, label: string}|null
+     */
+    public function cityByCode(int $code): ?array
+    {
+        if (! $this->isConfigured() || $code <= 0) {
+            return null;
+        }
+
+        $row = Cache::remember('cdek_city_by_code_'.$code, now()->addDay(), function () use ($code) {
+            $response = $this->client()->get('/location/cities', [
+                'code' => $code,
+                'size' => 1,
+            ]);
+
+            if (! $response->successful()) {
+                Log::warning('CDEK city by code failed', ['status' => $response->status(), 'code' => $code]);
+
+                return null;
+            }
+
+            return $response->json('0');
+        });
+
+        if (! is_array($row) || empty($row['city'])) {
+            return null;
+        }
+
+        // `location/cities` (в отличие от `suggest/cities`) не отдаёт готовый full_name —
+        // собираем его сами из города/региона/страны, отбрасывая повторы: у Москвы
+        // город и регион называются одинаково.
+        $parts = array_values(array_unique(array_filter([
+            (string) $row['city'],
+            (string) ($row['region'] ?? ''),
+            (string) ($row['country'] ?? ''),
+        ])));
+
+        return [
+            'code' => (int) $row['code'],
+            'city' => (string) $row['city'],
+            'label' => implode(', ', $parts),
+        ];
+    }
 }
