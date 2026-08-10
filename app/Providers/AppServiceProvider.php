@@ -11,6 +11,7 @@ use App\Services\TBank\TBankClient;
 use App\Services\YandexDelivery\YandexDeliveryClient;
 use App\Services\YandexPay\YandexPayClient;
 use App\Services\YandexPay\YandexPayWebhookVerifier;
+use App\Support\UploadedImageWatcher;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -59,6 +60,9 @@ class AppServiceProvider extends ServiceProvider
     {
         // Возврат товара на склад при отмене/удалении заказа.
         Order::observe(OrderObserver::class);
+
+        // Сжатие фотографий сразу после загрузки из админки.
+        UploadedImageWatcher::register();
 
         // Admin-editable mail settings (Настройки → Почта) override the .env defaults,
         // same DB-first-then-env-fallback pattern as CDEK/T-Bank above. Guarded against

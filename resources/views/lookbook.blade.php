@@ -48,7 +48,7 @@
                                         @foreach($collection->photos as $photo)
                                             <div class="swiper-slide">
                                                 <a href="{{ asset('storage/'.$photo->image) }}" data-fancybox>
-                                                    <img src="{{ asset('storage/'.$photo->image) }}" alt="image">
+                                                    <img src="{{ asset('storage/'.$photo->image) }}" alt="image" loading="lazy" decoding="async">
                                                 </a>
                                             </div>
                                         @endforeach

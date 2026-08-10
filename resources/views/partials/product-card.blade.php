@@ -18,7 +18,7 @@
     <div class="product-item-first">
         <a href="{{ $url }}" class="product-item-top uri-permalink">
             @if($cover)
-                <img src="{{ asset('storage/'.$cover->path) }}" alt="product">
+                <img src="{{ asset('storage/'.$cover->path) }}" alt="product" loading="lazy" decoding="async">
             @endif
             <div class="product-item-settings">
                 @if($product->is_new)<span class="new">new</span>@endif

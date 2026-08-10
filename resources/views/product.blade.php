@@ -93,7 +93,7 @@
             @foreach($product->images as $image)
                     <div class="swiper-slide">
                         <a href="{{ asset('storage/'.$image->path) }}" data-fancybox="product" class="gallery-top-container">
-                            <img src="{{ asset('storage/'.$image->path) }}" alt="{{ $product->name }}">
+                            <img src="{{ asset('storage/'.$image->path) }}" alt="{{ $product->name }}"@if(! $loop->first) loading="lazy"@endif decoding="async">
                         </a>
                     </div>
             @endforeach

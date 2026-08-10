@@ -493,3 +493,42 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
 .checkout-errors li + li {
     margin-top: 6px;
 }
+
+/* Шапка при прокрутке (согласовано с владельцем, отступление от эталона).
+   1) Эталон при скролле вниз уводит шапку наверх классом .hidden — отменяем,
+      шапка должна оставаться на виду всегда.
+   2) Компактный вид вешаем на СВОЙ класс .header--compact (ставит storefront.js
+      при scrollY > 50), а не на .fixed/.hidden темы: те переключаются при каждой
+      смене направления и .fixed остаётся даже наверху страницы.
+   3) Чёрная линия снизу — чтобы шапка не сливалась с белым контентом. */
+.header.hidden {
+    transform: none;
+}
+
+.header {
+    transition: transform .3s ease-in-out, padding .2s ease, border-color .2s ease;
+}
+
+.header--compact {
+    border-bottom: 1px solid #0C0C0C;
+}
+
+@media screen and (min-width: 769px) {
+    .header--compact {
+        padding: 16px 0;
+    }
+
+    .header--compact .header-block__logo {
+        font-size: 30px;
+    }
+
+    .header-block__logo {
+        transition: font-size .2s ease;
+    }
+}
+
+/* Наверху страницы линии быть не должно: тема оставляет свой класс .fixed
+   (с бордером) даже после возврата к нулю прокрутки. */
+.header:not(.header--compact) {
+    border-bottom-color: transparent;
+}

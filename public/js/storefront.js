@@ -48,3 +48,29 @@ jQuery(function ($) {
         });
     });
 });
+
+// Компактная шапка при прокрутке. Свой класс, а не .fixed темы: тема снимает
+// .fixed при скролле вниз и оставляет его наверху страницы, нам нужно ровно
+// обратное — компактный вид всегда, пока страница прокручена.
+(function () {
+    var header = document.querySelector('.header');
+    if (!header) {
+        return;
+    }
+
+    var ticking = false;
+
+    function apply() {
+        header.classList.toggle('header--compact', window.pageYOffset > 50);
+        ticking = false;
+    }
+
+    window.addEventListener('scroll', function () {
+        if (!ticking) {
+            ticking = true;
+            requestAnimationFrame(apply);
+        }
+    }, {passive: true});
+
+    apply();
+})();
