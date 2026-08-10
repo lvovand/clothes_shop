@@ -90,7 +90,7 @@
                                 <div class="cart-main-item-left">
                                     <a href="{{ $url }}" class="cart-main-item__img">
                                         @if($image)
-                                            <div style="background: url('{{ asset('storage/'.$image->path) }}') no-repeat top / cover;"></div>
+                                            <div style="background: url('{{ \App\Support\ImageVariants::url($image->path, 400) }}') no-repeat top / cover;"></div>
                                         @else
                                             <div></div>
                                         @endif

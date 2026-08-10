@@ -93,7 +93,10 @@
             @foreach($product->images as $image)
                     <div class="swiper-slide">
                         <a href="{{ asset('storage/'.$image->path) }}" data-fancybox="product" class="gallery-top-container">
-                            <img src="{{ asset('storage/'.$image->path) }}" alt="{{ $product->name }}"@if(! $loop->first) loading="lazy"@endif decoding="async">
+                            {{-- Слайдер галереи показывается в 651px (.gallery-top), на мобильном во всю ширину.
+                                 По ссылке fancybox открывает оригинал — там нужен полный размер. --}}
+                            <x-img :path="$image->path" sizes="(min-width: 993px) 651px, 100vw" :width="960"
+                                   alt="{{ $product->name }}" :loading="$loop->first ? false : 'lazy'" decoding="async" />
                         </a>
                     </div>
             @endforeach
@@ -110,7 +113,7 @@
                 <div class="swiper-wrapper">
                     @foreach($product->images as $image)
             <div class="swiper-slide">
-                <div class="gallery-thumbs-container__image" style="background: url('{{ asset('storage/'.$image->path) }}') no-repeat center / cover;" data-alt="{{ $product->name }} - 1_{{ $loop->index }}"></div>
+                <div class="gallery-thumbs-container__image" style="background: url('{{ \App\Support\ImageVariants::url($image->path, 400) }}') no-repeat center / cover;" data-alt="{{ $product->name }} - 1_{{ $loop->index }}"></div>
             </div>
                     @endforeach
                                 </div>

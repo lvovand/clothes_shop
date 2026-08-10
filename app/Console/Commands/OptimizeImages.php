@@ -31,7 +31,9 @@ class OptimizeImages extends Command
     /** Где в базе могут лежать пути к файлам хранилища. */
     private const PATH_COLUMNS = [
         ['product_images', 'path'],
+        ['product_images', 'thumb_path'],
         ['categories', 'image'],
+        ['categories', 'thumb_path'],
         ['lookbook_photos', 'image'],
         ['pages', 'image'],
         ['pages', 'image_mobile'],

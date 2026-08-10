@@ -44,6 +44,12 @@ class CategoryResource extends Resource
                     ->image()
                     ->imageEditor()
                     ->directory('categories'),
+                Forms\Components\FileUpload::make('thumb_path')
+                    ->label('Превью (необязательно)')
+                    ->helperText('Оставьте пустым — превью сделается из изображения выше автоматически. Загрузите свою картинку, если нужен другой кадр; кроп и поворот правятся кнопкой карандаша на загруженном файле.')
+                    ->image()
+                    ->imageEditor()
+                    ->directory('categories'),
                 Forms\Components\TextInput::make('sort_order')
                     ->label('Порядок сортировки')
                     ->numeric()

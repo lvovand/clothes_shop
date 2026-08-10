@@ -41,7 +41,9 @@
                 <div class="swiper-wrapper">
                     @foreach($desktopSlides as $slide)
                         <div class="swiper-slide">
-                            <img class="before-after__item before-after__item-desktop" src="{{ asset('storage/'.$slide->image) }}" />
+                            {{-- Слайд показывается во всю ширину контейнера (1320px), поэтому копия 1280 достаточна. --}}
+                            <x-img :path="$slide->image" sizes="(min-width: 1360px) 1320px, 100vw" :width="1280"
+                                   class="before-after__item before-after__item-desktop" />
                         </div>
                     @endforeach
                 </div>
@@ -59,7 +61,8 @@
 
                 @foreach($mobileSlides as $slide)
                     <div class="swiper-slide">
-                        <img class="before-after__item before-after__item-mobile" src="{{ asset('storage/'.$slide->image) }}" />
+                        <x-img :path="$slide->image" sizes="100vw" :width="640"
+                                class="before-after__item before-after__item-mobile" />
                     </div>
                 @endforeach
 

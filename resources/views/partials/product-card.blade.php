@@ -18,7 +18,11 @@
     <div class="product-item-first">
         <a href="{{ $url }}" class="product-item-top uri-permalink">
             @if($cover)
-                <img src="{{ asset('storage/'.$cover->path) }}" alt="product" loading="lazy" decoding="async">
+                {{-- Карточка показывается в 426px (32.3% контейнера 1320px), на средних
+                     экранах — 23.6% ширины, на мобильном — 48vw; отдаём копию под размер. --}}
+                <x-img :path="$cover->previewPath()"
+                       :sizes="$cardSizes ?? '(min-width: 1321px) 426px, (min-width: 1102px) 24vw, 48vw'"
+                       :width="640" alt="product" loading="lazy" decoding="async" />
             @endif
             <div class="product-item-settings">
                 @if($product->is_new)<span class="new">new</span>@endif

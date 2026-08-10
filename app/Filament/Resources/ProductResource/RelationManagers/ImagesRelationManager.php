@@ -24,6 +24,12 @@ class ImagesRelationManager extends RelationManager
                     ->imageEditor()
                     ->directory('products')
                     ->required(),
+                Forms\Components\FileUpload::make('thumb_path')
+                    ->label('Превью для каталога (необязательно)')
+                    ->helperText('Оставьте пустым — превью сделается из фотографии выше автоматически. Загрузите свою картинку, если в каталоге нужен другой кадр; кроп и поворот правятся кнопкой карандаша на загруженном файле.')
+                    ->image()
+                    ->imageEditor()
+                    ->directory('products'),
                 Forms\Components\TextInput::make('alt')
                     ->label('Alt-текст'),
                 Forms\Components\TextInput::make('sort_order')
@@ -41,6 +47,7 @@ class ImagesRelationManager extends RelationManager
             ->defaultSort('sort_order')
             ->columns([
                 Tables\Columns\ImageColumn::make('path')->label('Изображение'),
+                Tables\Columns\ImageColumn::make('thumb_path')->label('Своё превью'),
                 Tables\Columns\TextColumn::make('alt')->label('Alt-текст'),
                 Tables\Columns\TextColumn::make('sort_order')->label('Порядок'),
             ])

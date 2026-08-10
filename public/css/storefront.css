@@ -532,3 +532,22 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
 .header:not(.header--compact) {
     border-bottom-color: transparent;
 }
+
+/* Уменьшенные копии фотографий (srcset + WebP) требуют обёртки <picture>, которой
+   у эталона нет. Сам <picture> — строчный элемент, поэтому в тех местах, где тема
+   рассчитывает на блочную или flex-раскладку картинки, он бы дал лишнюю строку и
+   другую ширину. Делаем обёртку прозрачной для раскладки: размеры по-прежнему
+   задаёт <img> правилами темы. */
+.product-item-top picture,
+.gallery-top-container picture,
+.banner-block-images picture {
+    display: block;
+    width: 100%;
+    line-height: inherit;
+}
+
+/* В .gallery-top-container картинка у эталона — flex-элемент, то есть блочная.
+   Внутри <picture> она снова строчная и добавляет 5px базовой линии — возвращаем. */
+.gallery-top-container picture img {
+    display: block;
+}
