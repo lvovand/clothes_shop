@@ -43,6 +43,8 @@ class ImagesRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('alt')
+            ->emptyStateHeading('Фотографий пока нет')
+            ->emptyStateDescription('Нажмите «Создать», чтобы загрузить фотографии товара.')
             ->reorderable('sort_order')
             ->defaultSort('sort_order')
             ->columns([

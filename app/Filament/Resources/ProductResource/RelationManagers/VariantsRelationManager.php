@@ -74,6 +74,8 @@ class VariantsRelationManager extends RelationManager
 
         return $table
             ->recordTitleAttribute('sku')
+            ->emptyStateHeading('Вариантов пока нет')
+            ->emptyStateDescription('Нажмите «Создать», чтобы добавить сочетание цвета и размера со своей ценой и остатком.')
             ->columns([
                 Tables\Columns\TextColumn::make('sku')->label('Артикул'),
                 Tables\Columns\TextColumn::make('attributeValues.label')->label('Цвет/размер')->badge(),

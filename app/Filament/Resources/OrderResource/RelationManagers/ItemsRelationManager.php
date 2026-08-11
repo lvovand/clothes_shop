@@ -31,6 +31,8 @@ class ItemsRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('product_title_snapshot')
+            ->emptyStateHeading('Товаров в заказе нет')
+            ->emptyStateDescription('Позиции попадают сюда при оформлении заказа.')
             ->columns([
                 Tables\Columns\TextColumn::make('product_title_snapshot')->label('Товар'),
                 Tables\Columns\TextColumn::make('variant_attrs_snapshot')->label('Цвет/размер'),

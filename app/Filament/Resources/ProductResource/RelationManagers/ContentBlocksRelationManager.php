@@ -43,6 +43,8 @@ class ContentBlocksRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('title')
+            ->emptyStateHeading('Блоков описания пока нет')
+            ->emptyStateDescription('Нажмите «Создать», чтобы добавить «Описание и уход» или «Параметры изделия».')
             ->reorderable('sort_order')
             ->defaultSort('sort_order')
             ->columns([
