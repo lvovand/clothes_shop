@@ -863,8 +863,13 @@
             moveAddressBlock();
             togglePickupDetails();
             updatePaymentAvailability();
+            // Сброс пункта выдачи — обязательно ДО расчёта: коды ПВЗ у перевозчиков
+            // свои, и код СДЭК, уехавший в расчёт Яндекса, даёт «Not found station
+            // by station_id» (раньше resetPvz шёл после refreshTotals, и первый
+            // запрос после переключения уходил с чужим кодом).
+            resetPvz();
             refreshTotals();
-            if (radio.dataset.needsPvz === '1') loadPickupPoints(); else resetPvz();
+            if (radio.dataset.needsPvz === '1') loadPickupPoints();
         });
     });
 
