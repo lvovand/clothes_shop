@@ -190,6 +190,15 @@
                                                 @else
                                                     <p class="gray-days">После оформления заказа с вами свяжется менеджер для уточнения деталей доставки.</p>
                                                 @endif
+                                                {{-- Срок под адресом пункта выдачи (у курьера — под описанием способа):
+                                                     в итогах заказа он тоже есть, но там его не видно, пока человек
+                                                     выбирает способ. Заполняется тем же ответом /checkout/quote. --}}
+                                                @php
+                                                    $methodDays = $selectedMethod && $selectedMethod->code === $method->code
+                                                        ? $shippingDays
+                                                        : null;
+                                                @endphp
+                                                <p class="method-days" @if(empty($methodDays)) style="display: none;" @endif>Срок доставки: <span>{{ $methodDays }}</span></p>
                                             </span>
                                         </label>
                                     </li>
@@ -516,9 +525,19 @@
 
     function setShippingDays(days) {
         const box = document.getElementById('shipping-days');
-        if (!box) return;
-        box.textContent = days || '';
-        box.style.display = days ? '' : 'none';
+        if (box) {
+            box.textContent = days || '';
+            box.style.display = days ? '' : 'none';
+        }
+
+        // Тот же срок — в блоке выбранного способа, под адресом пункта выдачи.
+        // У остальных способов строка прячется: срок считается для выбранного.
+        const chosen = selectedMethod()?.closest('li');
+        document.querySelectorAll('.method-days').forEach(el => {
+            const mine = el.closest('li') === chosen && days;
+            el.querySelector('span').textContent = mine ? days : '';
+            el.style.display = mine ? '' : 'none';
+        });
     }
 
     function applyTotals(t) {

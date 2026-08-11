@@ -551,3 +551,24 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
 .gallery-top-container picture img {
     display: block;
 }
+
+/* Срок доставки в блоке способа — под адресом выбранного пункта выдачи.
+   У эталона такой строки нет вовсе (там и сроков нет), поэтому метрики берём
+   от соседних подписей темы: размер как у .col-03 label, цвет чёрный, чтобы
+   строка читалась, но не спорила с жирным адресом .pickup-title. */
+.method-days {
+    margin-top: 8px;
+    font-size: 16px;
+    font-weight: 400;
+    color: #0C0C0C;
+}
+
+.method-days span {
+    font-weight: 600;
+}
+
+@media (max-width: 768px) {
+    .method-days {
+        font-size: 14px;
+    }
+}
