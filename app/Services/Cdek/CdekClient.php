@@ -245,4 +245,143 @@ class CdekClient
             'label' => implode(', ', $parts),
         ];
     }
+
+    /**
+     * Пункты СДЭК, которые ПРИНИМАЮТ отправления — из них владелец выбирает,
+     * куда возит посылки («Настройки → Доставка и оплата»). Это не то же, что
+     * getPickupPoints(): там пункты выдачи для покупателя.
+     *
+     * @return array<int, array{code: string, label: string}>
+     */
+    public function receptionPoints(int $cityCode): array
+    {
+        if (! $this->isConfigured()) {
+            return [];
+        }
+
+        $response = $this->client()->get('/deliverypoints', [
+            'city_code' => $cityCode,
+            'type' => 'PVZ',
+            'is_reception' => 'true',
+        ]);
+
+        if (! $response->successful()) {
+            Log::warning('CDEK reception points failed', ['status' => $response->status()]);
+
+            return [];
+        }
+
+        return collect($response->json() ?: [])
+            ->map(fn ($point) => [
+                'code' => (string) ($point['code'] ?? ''),
+                'label' => trim(($point['code'] ?? '').' — '.($point['location']['address'] ?? '')
+                    .(($point['work_time'] ?? '') ? ' ('.$point['work_time'].')' : '')),
+            ])
+            ->filter(fn ($point) => $point['code'] !== '')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Создание заказа (заявки) в СДЭК. Ответ асинхронный: сразу приходит только
+     * uuid, номер накладной появляется через несколько секунд — его забирает
+     * orderInfo().
+     *
+     * @return array{uuid: string, raw: array}|null
+     */
+    public function createOrder(array $payload): ?array
+    {
+        if (! $this->isConfigured()) {
+            return null;
+        }
+
+        $response = $this->client()->post('/orders', $payload);
+
+        // 202 Accepted — обычный успешный ответ на создание, не только 200.
+        if (! $response->successful()) {
+            Log::error('CDEK order create failed', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+                'number' => $payload['number'] ?? null,
+            ]);
+
+            return null;
+        }
+
+        $uuid = (string) $response->json('entity.uuid', '');
+
+        // Ошибки валидации СДЭК отдаёт внутри requests[].errors при успешном коде,
+        // поэтому мало проверить статус ответа.
+        $errors = collect($response->json('requests', []))
+            ->flatMap(fn ($request) => $request['errors'] ?? [])
+            ->pluck('message')
+            ->filter()
+            ->all();
+
+        if ($uuid === '' || $errors) {
+            Log::error('CDEK order rejected', ['errors' => $errors, 'body' => $response->body()]);
+
+            return null;
+        }
+
+        return ['uuid' => $uuid, 'raw' => $response->json()];
+    }
+
+    /**
+     * Состояние заявки: отсюда берётся номер накладной (cdek_number), по которому
+     * посылка отслеживается.
+     *
+     * @return array{number: ?string, status: ?string, raw: array}|null
+     */
+    public function orderInfo(string $uuid): ?array
+    {
+        if (! $this->isConfigured() || $uuid === '') {
+            return null;
+        }
+
+        $response = $this->client()->get('/orders/'.$uuid);
+
+        if (! $response->successful()) {
+            Log::warning('CDEK order info failed', ['status' => $response->status(), 'uuid' => $uuid]);
+
+            return null;
+        }
+
+        $entity = $response->json('entity', []);
+        $statuses = $entity['statuses'] ?? [];
+
+        return [
+            'number' => isset($entity['cdek_number']) ? (string) $entity['cdek_number'] : null,
+            'status' => $statuses ? (string) ($statuses[0]['name'] ?? '') : null,
+            'raw' => $response->json(),
+        ];
+    }
+
+    /**
+     * Отмена заявки. Пока посылку не приняли в пункте, СДЭК позволяет удалить её.
+     *
+     * @return array{ok: bool, reason: ?string}
+     */
+    public function deleteOrder(string $uuid): array
+    {
+        if (! $this->isConfigured()) {
+            return ['ok' => false, 'reason' => 'не заданы ключи СДЭК'];
+        }
+
+        $response = $this->client()->delete('/orders/'.$uuid);
+
+        if (! $response->successful()) {
+            return ['ok' => false, 'reason' => 'СДЭК ответил '.$response->status().': '.$response->body()];
+        }
+
+        $errors = collect($response->json('requests', []))
+            ->flatMap(fn ($request) => $request['errors'] ?? [])
+            ->pluck('message')
+            ->filter()
+            ->all();
+
+        return $errors
+            ? ['ok' => false, 'reason' => implode('; ', $errors)]
+            : ['ok' => true, 'reason' => null];
+    }
 }

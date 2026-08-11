@@ -17,7 +17,7 @@ use App\Services\StockService;
 use App\Services\TBank\TBankClient;
 use App\Services\Telegram\TelegramNotifier;
 use App\Services\YandexDelivery\YandexDeliveryClient;
-use App\Services\YandexDelivery\YandexDeliveryDispatcher;
+use App\Services\Shipping\ShipmentDispatcher;
 use App\Services\YandexPay\YandexPayClient;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -254,20 +254,16 @@ class CheckoutController extends Controller
     {
         app()->terminating(function () use ($order) {
             try {
-                $result = app(YandexDeliveryDispatcher::class)->dispatch($order);
+                $result = app(ShipmentDispatcher::class)->dispatch($order);
             } catch (\Throwable $e) {
-                Log::error('Yandex Delivery dispatch failed', ['order' => $order->id, 'error' => $e->getMessage()]);
+                Log::error('Shipment dispatch failed', ['order' => $order->id, 'error' => $e->getMessage()]);
 
                 return;
             }
 
-            $quiet = [
-                YandexDeliveryDispatcher::REASON_NOT_YANDEX,
-                YandexDeliveryDispatcher::REASON_AUTO_OFF,
-                YandexDeliveryDispatcher::REASON_ALREADY,
-            ];
+            $reason = $result['reason'] ?? null;
 
-            if (in_array($result['reason'] ?? '', $quiet, true)) {
+            if (app(ShipmentDispatcher::class)->isQuiet($reason) || $reason === ShipmentDispatcher::REASON_ALREADY) {
                 return;
             }
 

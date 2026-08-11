@@ -8,7 +8,7 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Services\TBank\TBankClient;
 use App\Services\Telegram\TelegramNotifier;
-use App\Services\YandexDelivery\YandexDeliveryDispatcher;
+use App\Services\Shipping\ShipmentDispatcher;
 use App\Services\YandexPay\YandexPayWebhookVerifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -151,7 +151,7 @@ class PaymentWebhookController extends Controller
                         Log::error('Telegram notify failed', ['error' => $e->getMessage()]);
                     }
 
-                    $this->dispatchYandexDelivery($order, $telegram);
+                    $this->dispatchDelivery($order, $telegram);
                 });
             } else {
                 $order->update(['payment_status' => 'failed']);
@@ -180,32 +180,30 @@ class PaymentWebhookController extends Controller
      * Ошибка не должна ронять обработку вебхука — о ней сообщаем в Telegram, чтобы
      * заказ не остался незамеченным и его оформили в кабинете руками.
      */
-    private function dispatchYandexDelivery(Order $order, TelegramNotifier $telegram): void
+    private function dispatchDelivery(Order $order, TelegramNotifier $telegram): void
     {
         try {
-            $result = app(YandexDeliveryDispatcher::class)->dispatch($order);
+            $result = app(ShipmentDispatcher::class)->dispatch($order);
         } catch (\Throwable $e) {
-            Log::error('Yandex Delivery dispatch failed', ['order' => $order->id, 'error' => $e->getMessage()]);
+            Log::error('Shipment dispatch failed', ['order' => $order->id, 'error' => $e->getMessage()]);
             $this->notifyShipmentFailure($order, $telegram, $e->getMessage());
 
             return;
         }
 
-        // Не яндексовский способ и выключенное автосоздание — не ошибки, молчим.
-        $quiet = [YandexDeliveryDispatcher::REASON_NOT_YANDEX, YandexDeliveryDispatcher::REASON_AUTO_OFF];
-
-        if (! $result['ok'] && in_array($result['reason'] ?? '', $quiet, true)) {
+        // Способ без перевозчика (самовывоз) и выключенное автосоздание — не ошибки, молчим.
+        if (! $result['ok'] && app(ShipmentDispatcher::class)->isQuiet($result['reason'] ?? null)) {
             return;
         }
 
         if (! $result['ok']) {
-            Log::warning('Yandex Delivery dispatch skipped', ['order' => $order->id, 'reason' => $result['reason'] ?? '']);
+            Log::warning('Shipment dispatch skipped', ['order' => $order->id, 'reason' => $result['reason'] ?? '']);
             $this->notifyShipmentFailure($order, $telegram, (string) ($result['reason'] ?? 'неизвестная причина'));
 
             return;
         }
 
-        if (($result['reason'] ?? null) === YandexDeliveryDispatcher::REASON_ALREADY) {
+        if (($result['reason'] ?? null) === ShipmentDispatcher::REASON_ALREADY) {
             return;
         }
 

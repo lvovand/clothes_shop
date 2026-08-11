@@ -29,8 +29,9 @@ class ShippingPaymentSettings extends Page implements HasForms
         'cdek_client_id', 'cdek_client_secret', 'cdek_sender_city_code', 'yandex_map_api_key',
         'yandex_delivery_token', 'yandex_delivery_dropoff_city', 'yandex_delivery_dropoff_id',
         'yandex_delivery_sender_phone', 'yandex_delivery_sender_name',
-        'yandex_delivery_weight', 'yandex_delivery_dx', 'yandex_delivery_dy', 'yandex_delivery_dz',
-        'yandex_delivery_auto_create',
+        'cdek_shipment_point',
+        'parcel_weight', 'parcel_dx', 'parcel_dy', 'parcel_dz',
+        'delivery_auto_create',
         'tbank_terminal_key', 'tbank_secret_key',
         'yandex_pay_merchant_id', 'yandex_pay_api_key', 'yandex_pay_env',
         'dadata_api_key',
@@ -61,7 +62,7 @@ class ShippingPaymentSettings extends Page implements HasForms
 
                 // Автосоздание включено по умолчанию: пустая настройка не должна
                 // выглядеть как «выключено».
-                if ($key === 'yandex_delivery_auto_create') {
+                if ($key === 'delivery_auto_create') {
                     $value = $value === null ? true : (bool) $value;
                 }
 
@@ -97,6 +98,23 @@ class ShippingPaymentSettings extends Page implements HasForms
                                 return $city['label'] ?? 'Код '.$value;
                             })
                             ->helperText('Населённый пункт, откуда отправляются заказы. Начните вводить название — список подтянется из справочника СДЭК. Работает только когда заполнены Client ID и Client Secret выше.'),
+                        // Тарифы магазина — «склад–склад» и «склад–дверь», то есть
+                        // посылки сдаются в пункт СДЭК: без его кода заявку создать
+                        // нельзя. Список — только пункты, принимающие отправления.
+                        Forms\Components\Select::make('cdek_shipment_point')
+                            ->label('Пункт сдачи посылок (СДЭК)')
+                            ->searchable()
+                            ->columnSpanFull()
+                            ->options(function () {
+                                $city = (int) SiteSetting::get('cdek_sender_city_code', 0);
+
+                                return $city
+                                    ? collect(app(\App\Services\Cdek\CdekClient::class)->receptionPoints($city))
+                                        ->pluck('label', 'code')
+                                        ->all()
+                                    : [];
+                            })
+                            ->helperText('Пункт СДЭК, куда магазин привозит заказы — по нему оформляется заявка. Список берётся по городу отправления выше: смените город, сохраните и вернитесь на страницу, чтобы список обновился.'),
                         Forms\Components\TextInput::make('yandex_map_api_key')
                             ->label('Ключ Яндекс.Карт (для виджета выбора ПВЗ)')
                             ->helperText('Нужен официальному виджету СДЭК для отрисовки карты на чекауте — ключ типа "JavaScript API и HTTP Геокодер" с сайта yandex.ru/maps-api, привязанный к домену сайта.'),
@@ -135,23 +153,28 @@ class ShippingPaymentSettings extends Page implements HasForms
                         Forms\Components\TextInput::make('yandex_delivery_sender_name')
                             ->label('Имя отправителя')
                             ->helperText('Если пусто — название магазина.'),
-                        Forms\Components\TextInput::make('yandex_delivery_weight')
-                            ->label('Вес одной единицы товара, г')
-                            ->numeric()
-                            ->default(500)
-                            ->helperText('У товаров нет своих весов, поэтому для расчёта берётся это значение.'),
-                        Forms\Components\TextInput::make('yandex_delivery_dx')->label('Длина посылки, см')->numeric()->default(30),
-                        Forms\Components\TextInput::make('yandex_delivery_dy')->label('Ширина посылки, см')->numeric()->default(25),
-                        Forms\Components\TextInput::make('yandex_delivery_dz')->label('Высота посылки, см')->numeric()->default(10),
-                        Forms\Components\Toggle::make('yandex_delivery_auto_create')
-                            ->label('Создавать заявку на доставку автоматически')
-                            ->default(true)
-                            ->columnSpanFull()
-                            ->helperText('Включено: как только заказ оплачен, заявка в Яндекс Доставке создаётся сама, а в Telegram приходит её номер. Выключено: заявки оформляются вручную — в кабинете Яндекса или кнопкой «Создать заявку» в самом заказе.'),
                         Forms\Components\Placeholder::make('yandex_delivery_methods_hint')
                             ->label('Показ способов покупателю')
                             ->columnSpanFull()
                             ->content('Включаются и выключаются в разделе «Заказы → Способы доставки»: «Яндекс Доставка — пункт выдачи» и «Яндекс Доставка — курьер». Там же можно выключить способы СДЭК.'),
+                    ]),
+                Forms\Components\Section::make('Посылка и заявки на доставку')
+                    ->description('Общие настройки для всех перевозчиков: по этим размерам считается доставка и оформляются заявки.')
+                    ->columns(2)
+                    ->schema([
+                        Forms\Components\TextInput::make('parcel_weight')
+                            ->label('Вес одной единицы товара, г')
+                            ->numeric()
+                            ->default(500)
+                            ->helperText('Берётся, когда у товара не заполнен свой вес.'),
+                        Forms\Components\TextInput::make('parcel_dx')->label('Длина посылки, см')->numeric()->default(30),
+                        Forms\Components\TextInput::make('parcel_dy')->label('Ширина посылки, см')->numeric()->default(25),
+                        Forms\Components\TextInput::make('parcel_dz')->label('Высота посылки, см')->numeric()->default(10),
+                        Forms\Components\Toggle::make('delivery_auto_create')
+                            ->label('Создавать заявку на доставку автоматически')
+                            ->default(true)
+                            ->columnSpanFull()
+                            ->helperText('Включено: как только заказ оплачен, заявка у перевозчика (Яндекс Доставка или СДЭК) создаётся сама, а в Telegram приходит её номер. Выключено: заявки оформляются вручную — в кабинете перевозчика или кнопкой «Создать заявку» в самом заказе.'),
                     ]),
                 Forms\Components\Section::make('Т-Банк (приём платежей)')
                     ->description('Данные терминала — личный кабинет Т-Банк Эквайринг')

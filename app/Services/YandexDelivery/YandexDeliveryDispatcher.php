@@ -34,7 +34,7 @@ class YandexDeliveryDispatcher
      */
     public function dispatch(Order $order, bool $force = false): array
     {
-        if (! $force && ! (bool) SiteSetting::get('yandex_delivery_auto_create', true)) {
+        if (! $force && ! (bool) SiteSetting::get('delivery_auto_create', true)) {
             return ['ok' => false, 'reason' => self::REASON_AUTO_OFF];
         }
 
@@ -162,10 +162,10 @@ class YandexDeliveryDispatcher
     private function dims(): array
     {
         return [
-            'weight' => (int) (SiteSetting::get('yandex_delivery_weight') ?: 500),
-            'dx' => (int) (SiteSetting::get('yandex_delivery_dx') ?: 30),
-            'dy' => (int) (SiteSetting::get('yandex_delivery_dy') ?: 25),
-            'dz' => (int) (SiteSetting::get('yandex_delivery_dz') ?: 10),
+            'weight' => (int) (SiteSetting::get('parcel_weight') ?: 500),
+            'dx' => (int) (SiteSetting::get('parcel_dx') ?: 30),
+            'dy' => (int) (SiteSetting::get('parcel_dy') ?: 25),
+            'dz' => (int) (SiteSetting::get('parcel_dz') ?: 10),
         ];
     }
 
