@@ -34,7 +34,7 @@ class YandexDeliveryDispatcher
      */
     public function dispatch(Order $order, bool $force = false): array
     {
-        if (! $force && ! (bool) SiteSetting::get('delivery_auto_create', true)) {
+        if (! $force && ! (bool) SiteSetting::get('yandex_auto_create', true)) {
             return ['ok' => false, 'reason' => self::REASON_AUTO_OFF];
         }
 

@@ -88,7 +88,7 @@ class CdekDispatcher
      */
     private function prepare(Order $order, bool $force): array
     {
-        if (! $force && ! (bool) SiteSetting::get('delivery_auto_create', true)) {
+        if (! $force && ! (bool) SiteSetting::get('cdek_auto_create', true)) {
             return ['ok' => false, 'reason' => self::REASON_AUTO_OFF];
         }
 
