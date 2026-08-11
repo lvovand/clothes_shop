@@ -240,7 +240,7 @@ class CheckoutController extends Controller
             try {
                 $callback(app(TelegramNotifier::class));
             } catch (\Throwable $e) {
-                Log::warning('Telegram notify failed', ['error' => $e->getMessage()]);
+                Log::error('Telegram notify failed', ['error' => $e->getMessage()]);
             }
         });
     }
@@ -280,7 +280,7 @@ class CheckoutController extends Controller
                     $telegram->shipmentFailed($order, (string) ($result['reason'] ?? 'неизвестная причина'));
                 }
             } catch (\Throwable $e) {
-                Log::warning('Telegram notify failed', ['error' => $e->getMessage()]);
+                Log::error('Telegram notify failed', ['error' => $e->getMessage()]);
             }
         });
     }

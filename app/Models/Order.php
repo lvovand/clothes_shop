@@ -26,6 +26,24 @@ class Order extends Model
         return $this->belongsTo(ShippingMethod::class);
     }
 
+    /**
+     * Адрес одной строкой для показа человеку (уведомления, письма).
+     *
+     * Само поле хранится массивом (город, адрес, код и адрес ПВЗ), поэтому
+     * подставлять его в текст напрямую нельзя — приведение массива к строке
+     * роняет вызывающий код.
+     */
+    public function shippingAddressText(): ?string
+    {
+        $parts = array_filter([
+            $this->shipping_address['city'] ?? null,
+            $this->shipping_address['address'] ?? null,
+            $this->shipping_address['pvz_address'] ?? null,
+        ]);
+
+        return $parts === [] ? null : implode(', ', $parts);
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);

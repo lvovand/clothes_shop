@@ -148,7 +148,7 @@ class PaymentWebhookController extends Controller
                     try {
                         $telegram->orderPaid($order);
                     } catch (\Throwable $e) {
-                        Log::warning('Telegram notify failed', ['error' => $e->getMessage()]);
+                        Log::error('Telegram notify failed', ['error' => $e->getMessage()]);
                     }
 
                     $this->dispatchYandexDelivery($order, $telegram);
@@ -217,7 +217,7 @@ class PaymentWebhookController extends Controller
                 $shipment->pvz_address ?: ($order->shipping_address['address'] ?? null),
             );
         } catch (\Throwable $e) {
-            Log::warning('Telegram notify failed', ['error' => $e->getMessage()]);
+            Log::error('Telegram notify failed', ['error' => $e->getMessage()]);
         }
     }
 
@@ -226,7 +226,7 @@ class PaymentWebhookController extends Controller
         try {
             $telegram->shipmentFailed($order, $reason);
         } catch (\Throwable $e) {
-            Log::warning('Telegram notify failed', ['error' => $e->getMessage()]);
+            Log::error('Telegram notify failed', ['error' => $e->getMessage()]);
         }
     }
 }

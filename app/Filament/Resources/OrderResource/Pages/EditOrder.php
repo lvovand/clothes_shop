@@ -120,7 +120,7 @@ class EditOrder extends EditRecord
         try {
             $callback(app(TelegramNotifier::class));
         } catch (\Throwable $e) {
-            Log::warning('Telegram notify failed', ['error' => $e->getMessage()]);
+            Log::error('Telegram notify failed', ['error' => $e->getMessage()]);
         }
     }
 }

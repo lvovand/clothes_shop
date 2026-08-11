@@ -179,7 +179,7 @@ class TelegramNotifier
             return;
         }
 
-        $this->send($this->orderText($order, '🛍 Новый заказ'));
+        $this->sendAbout($order, $this->orderText($order, '🛍 Новый заказ'));
     }
 
     public function orderPaid(Order $order): void
@@ -188,7 +188,24 @@ class TelegramNotifier
             return;
         }
 
-        $this->send($this->orderText($order, '✅ Оплата получена'));
+        $this->sendAbout($order, $this->orderText($order, '✅ Оплата получена'));
+    }
+
+    /**
+     * Уведомление о заказе: неушедшее сообщение — это пропущенный заказ, поэтому
+     * пишется уровнем error. Внутренние предупреждения `call()` при боевом
+     * LOG_LEVEL=error в лог не попадают, и сбой оставался бы незаметным.
+     */
+    private function sendAbout(Order $order, string $text): void
+    {
+        $result = $this->send($text);
+
+        if (! $result['ok']) {
+            Log::error('Уведомление о заказе не отправлено', [
+                'order' => $order->order_number ?: $order->id,
+                'error' => $result['error'],
+            ]);
+        }
     }
 
     /** Заявка в Яндекс Доставке создана автоматически после оплаты. */
@@ -249,8 +266,8 @@ class TelegramNotifier
 
         $lines[] = 'Доставка: '.e((string) ($order->shippingMethod->title ?? '—'));
 
-        if ($order->shipping_address) {
-            $lines[] = 'Адрес: '.e($order->shipping_address);
+        if ($address = $order->shippingAddressText()) {
+            $lines[] = 'Адрес: '.e($address);
         }
 
         $lines[] = 'Оплата: '.e(\App\Models\PaymentMethod::LABELS[$order->payment_method] ?? (string) $order->payment_method);
