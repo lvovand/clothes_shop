@@ -69,6 +69,22 @@ class TelegramSettings extends Page implements HasForms
                             ->helperText('Куда присылать уведомления. Несколько — через запятую или с новой строки. Чтобы узнать ID: напишите боту команду /id — он ответит числом, его и вставьте сюда. Для группы добавьте бота в неё и напишите /id там (ID группы начинается с минуса).')
                             ->rows(3),
                     ]),
+                Forms\Components\Section::make('Мини-приложение с заказами')
+                    ->description('В боте есть кнопка «Заказы» — она открывает список заказов с возможностью менять статус и статус оплаты. Кнопка появляется после нажатия «Подключить бота».')
+                    ->schema([
+                        Forms\Components\Placeholder::make('mini_app_url')
+                            ->label('Адрес приложения')
+                            ->content(route('telegram.app')),
+                        Forms\Components\Placeholder::make('mini_app_access')
+                            ->label('Кому открыт доступ')
+                            ->content(function () {
+                                $admins = \App\Models\TelegramAdmin::where('is_active', true)->pluck('username');
+
+                                return $admins->isEmpty()
+                                    ? 'Пока никому. Добавьте никнеймы в разделе «Настройки → Доступ в Telegram-приложение».'
+                                    : $admins->map(fn ($username) => '@'.$username)->implode(', ');
+                            }),
+                    ]),
                 Forms\Components\Section::make('Прокси')
                     ->description('Telegram недоступен с российских адресов, поэтому запросы к нему идут через зарубежный сервер. Если поле пустое, уведомления с этого сервера почти наверняка отправляться не будут.')
                     ->schema([

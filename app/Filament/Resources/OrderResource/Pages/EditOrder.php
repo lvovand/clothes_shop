@@ -3,26 +3,14 @@
 namespace App\Filament\Resources\OrderResource\Pages;
 
 use App\Filament\Resources\OrderResource;
-use App\Models\Shipment;
-use App\Services\Cdek\CdekClient;
-use App\Services\Cdek\CdekDispatcher;
-use App\Services\Shipping\ShipmentDispatcher;
-use App\Services\Telegram\TelegramNotifier;
-use App\Services\YandexDelivery\YandexDeliveryClient;
+use App\Services\Shipping\ShipmentActions;
 use Filament\Actions;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
-use Illuminate\Support\Facades\Log;
 
 class EditOrder extends EditRecord
 {
     protected static string $resource = OrderResource::class;
-
-    /** Как перевозчик называется в подписях кнопок. */
-    private const CARRIERS = [
-        'yandex' => 'Яндекс Доставке',
-        'cdek' => 'СДЭК',
-    ];
 
     protected function getHeaderActions(): array
     {
@@ -35,11 +23,18 @@ class EditOrder extends EditRecord
         ];
     }
 
-    private function carrier(): ?string
+    /**
+     * Сами действия живут в ShipmentActions: те же кнопки есть в мини-приложении
+     * бота, и логика создания/отмены заявки должна быть одна на всех.
+     */
+    private function actions(): ShipmentActions
     {
-        $provider = $this->record->shippingMethod?->provider();
+        return app(ShipmentActions::class);
+    }
 
-        return isset(self::CARRIERS[$provider]) ? $provider : null;
+    private function carrierName(): string
+    {
+        return $this->actions()->carrierName($this->record) ?? 'службе доставки';
     }
 
     /**
@@ -50,39 +45,21 @@ class EditOrder extends EditRecord
     private function createShipmentAction(): Actions\Action
     {
         return Actions\Action::make('createShipment')
-            ->label(fn () => 'Создать заявку в '.(self::CARRIERS[$this->carrier()] ?? 'службе доставки'))
+            ->label(fn () => 'Создать заявку в '.$this->carrierName())
             ->icon('heroicon-o-truck')
             ->requiresConfirmation()
-            ->modalDescription(fn () => $this->carrier() === 'cdek'
+            ->modalDescription(fn () => $this->record->shippingMethod?->provider() === 'cdek'
                 ? 'Заявка будет создана в СДЭК по данным этого заказа: тариф берётся из способа доставки, посылка отправляется из пункта сдачи, указанного в настройках.'
                 : 'Заявка будет создана в Яндекс Доставке по данным этого заказа. Стоимость доставки берётся самая дешёвая из предложенных Яндексом.')
-            ->visible(fn () => $this->carrier() !== null && ! $this->shipment())
+            ->visible(fn () => $this->actions()->canCreate($this->record))
             ->action(function () {
-                $result = app(ShipmentDispatcher::class)->dispatch($this->record, force: true);
-
-                if (! $result['ok']) {
-                    Notification::make()
-                        ->title('Заявку создать не удалось')
-                        ->body($result['reason'] ?? 'Неизвестная причина')
-                        ->danger()
-                        ->send();
-
-                    return;
-                }
-
-                $shipment = $result['shipment'];
+                $result = $this->actions()->create($this->record);
 
                 Notification::make()
-                    ->title('Заявка создана')
-                    ->body('Номер заявки: '.$shipment->tracking_number)
-                    ->success()
+                    ->title($result['ok'] ? 'Заявка создана' : 'Заявку создать не удалось')
+                    ->body($result['message'])
+                    ->status($result['ok'] ? 'success' : 'danger')
                     ->send();
-
-                $this->notifyTelegram(fn (TelegramNotifier $telegram) => $telegram->shipmentCreated(
-                    $this->record,
-                    (string) $shipment->tracking_number,
-                    $shipment->pvz_address,
-                ));
             });
     }
 
@@ -95,22 +72,14 @@ class EditOrder extends EditRecord
         return Actions\Action::make('refreshCdekNumber')
             ->label('Обновить номер накладной')
             ->icon('heroicon-o-arrow-path')
-            ->visible(function () {
-                $shipment = $this->shipment(cancelled: false);
-
-                // uuid остаётся в raw_response только пока номера нет: как только
-                // накладная получена, tracking_number — это она.
-                return $shipment
-                    && $shipment->provider === 'cdek'
-                    && $shipment->tracking_number === ($shipment->raw_response['uuid'] ?? null);
-            })
+            ->visible(fn () => $this->actions()->canRefreshNumber($this->record))
             ->action(function () {
-                $number = app(CdekDispatcher::class)->refreshNumber($this->shipment(cancelled: false));
+                $result = $this->actions()->refreshNumber($this->record);
 
                 Notification::make()
-                    ->title($number ? 'Номер накладной: '.$number : 'СДЭК ещё не выдал номер')
-                    ->body($number ? null : 'Заявка принята, но накладная пока оформляется. Попробуйте через минуту.')
-                    ->status($number ? 'success' : 'warning')
+                    ->title($result['ok'] ? 'Номер получен' : 'СДЭК ещё не выдал номер')
+                    ->body($result['message'])
+                    ->status($result['ok'] ? 'success' : 'warning')
                     ->send();
             });
     }
@@ -118,56 +87,20 @@ class EditOrder extends EditRecord
     private function cancelShipmentAction(): Actions\Action
     {
         return Actions\Action::make('cancelShipment')
-            ->label(fn () => 'Отменить заявку в '.(self::CARRIERS[$this->shipment(cancelled: false)?->provider] ?? 'службе доставки'))
+            ->label(fn () => 'Отменить заявку в '.$this->carrierName())
             ->icon('heroicon-o-x-circle')
             ->color('danger')
             ->requiresConfirmation()
             ->modalDescription('Заявка будет отменена на стороне перевозчика. Отменить можно, пока посылку не приняли к отправке.')
-            ->visible(fn () => (bool) $this->shipment(cancelled: false))
+            ->visible(fn () => $this->actions()->canCancel($this->record))
             ->action(function () {
-                $shipment = $this->shipment(cancelled: false);
+                $result = $this->actions()->cancel($this->record);
 
-                if (! $shipment) {
-                    return;
-                }
-
-                $result = $shipment->provider === 'cdek'
-                    ? app(CdekClient::class)->deleteOrder((string) ($shipment->raw_response['uuid'] ?? ''))
-                    : app(YandexDeliveryClient::class)->cancelRequest((string) $shipment->tracking_number);
-
-                if (! $result['ok']) {
-                    Notification::make()
-                        ->title('Отменить заявку не удалось')
-                        ->body($result['reason'] ?? 'Перевозчик отклонил отмену')
-                        ->danger()
-                        ->send();
-
-                    return;
-                }
-
-                $shipment->update(['status' => 'cancelled']);
-
-                Notification::make()->title('Заявка отменена')->success()->send();
+                Notification::make()
+                    ->title($result['ok'] ? 'Заявка отменена' : 'Отменить заявку не удалось')
+                    ->body($result['ok'] ? null : $result['message'])
+                    ->status($result['ok'] ? 'success' : 'danger')
+                    ->send();
             });
-    }
-
-    private function shipment(?bool $cancelled = null): ?Shipment
-    {
-        $query = $this->record->shipments()->whereNotNull('tracking_number');
-
-        if ($cancelled === false) {
-            $query->where('status', '!=', 'cancelled');
-        }
-
-        return $query->latest('id')->first();
-    }
-
-    private function notifyTelegram(callable $callback): void
-    {
-        try {
-            $callback(app(TelegramNotifier::class));
-        } catch (\Throwable $e) {
-            Log::error('Telegram notify failed', ['error' => $e->getMessage()]);
-        }
     }
 }

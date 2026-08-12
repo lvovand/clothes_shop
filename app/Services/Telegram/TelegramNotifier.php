@@ -59,7 +59,7 @@ class TelegramNotifier
      *
      * @return array{ok: bool, error: ?string}
      */
-    public function send(string $text): array
+    public function send(string $text, bool $withAppButton = false): array
     {
         if (! $this->isConfigured()) {
             return ['ok' => false, 'error' => 'Не заданы токен бота или ID чатов.'];
@@ -68,7 +68,7 @@ class TelegramNotifier
         $error = null;
 
         foreach ($this->chatIds() as $chatId) {
-            $result = $this->sendTo($chatId, $text);
+            $result = $this->sendTo($chatId, $text, $withAppButton ? $this->appButton($chatId) : null);
             if (! $result['ok']) {
                 $error = $result['error'];
             }
@@ -78,19 +78,49 @@ class TelegramNotifier
     }
 
     /**
+     * Кнопка «Заказы» под сообщением.
+     *
+     * В личной переписке она открывает мини-приложение сразу (тип web_app), а в
+     * группах Telegram такие кнопки запрещает — там ведём в чат с ботом, где
+     * приложение открывается кнопкой меню.
+     */
+    private function appButton(string $chatId): ?array
+    {
+        $url = route('telegram.app');
+
+        // Telegram принимает адрес мини-приложения только по HTTPS.
+        if (! str_starts_with($url, 'https://')) {
+            return null;
+        }
+
+        if (str_starts_with($chatId, '-')) {
+            $bot = trim((string) SiteSetting::get('telegram_bot_username', ''));
+
+            return $bot === '' ? null : [
+                'inline_keyboard' => [[['text' => '📋 Заказы', 'url' => 'https://t.me/'.$bot]]],
+            ];
+        }
+
+        return [
+            'inline_keyboard' => [[['text' => '📋 Заказы', 'web_app' => ['url' => $url]]]],
+        ];
+    }
+
+    /**
      * Отправка в конкретный чат — используется обработчиком команды /id, где
      * получатель ещё не вписан в настройки.
      *
      * @return array{ok: bool, error: ?string}
      */
-    public function sendTo(string $chatId, string $text): array
+    public function sendTo(string $chatId, string $text, ?array $replyMarkup = null): array
     {
-        $result = $this->call('sendMessage', [
+        $result = $this->call('sendMessage', array_filter([
             'chat_id' => $chatId,
             'text' => $text,
             'parse_mode' => 'HTML',
             'disable_web_page_preview' => true,
-        ]);
+            'reply_markup' => $replyMarkup,
+        ], fn ($value) => $value !== null));
 
         return ['ok' => $result['ok'], 'error' => $result['error']];
     }
@@ -167,10 +197,55 @@ class TelegramNotifier
         $commands = $this->call('setMyCommands', [
             'commands' => [
                 ['command' => 'id', 'description' => 'Показать ID этого чата'],
+                ['command' => 'orders', 'description' => 'Открыть заказы'],
             ],
         ]);
 
-        return ['ok' => $commands['ok'], 'error' => $commands['error']];
+        // Кнопка рядом с полем ввода в личной переписке с ботом — основной вход в
+        // мини-приложение. Ставится один раз для всех приватных чатов сразу.
+        $menu = $this->setAppMenuButton();
+
+        return [
+            'ok' => $commands['ok'] && $menu['ok'],
+            'error' => $commands['error'] ?? $menu['error'],
+        ];
+    }
+
+    /**
+     * Ответ на команду /orders: сообщение с кнопкой, открывающей приложение.
+     * Кому оно доступно, решает уже само приложение по списку никнеймов.
+     */
+    public function sendAppLink(string $chatId): void
+    {
+        $button = $this->appButton($chatId);
+
+        $this->sendTo($chatId, $button === null
+            ? 'Мини-приложение с заказами пока не подключено.'
+            : 'Заказы магазина — по кнопке ниже.', $button);
+    }
+
+    /**
+     * Кнопка меню бота, открывающая мини-приложение с заказами.
+     *
+     * @return array{ok: bool, error: ?string}
+     */
+    public function setAppMenuButton(): array
+    {
+        $url = route('telegram.app');
+
+        if (! str_starts_with($url, 'https://')) {
+            return ['ok' => false, 'error' => 'Мини-приложение открывается только по HTTPS, а адрес сайта — '.$url];
+        }
+
+        $result = $this->call('setChatMenuButton', [
+            'menu_button' => [
+                'type' => 'web_app',
+                'text' => 'Заказы',
+                'web_app' => ['url' => $url],
+            ],
+        ]);
+
+        return ['ok' => $result['ok'], 'error' => $result['error']];
     }
 
     public function orderCreated(Order $order): void
@@ -198,7 +273,7 @@ class TelegramNotifier
      */
     private function sendAbout(Order $order, string $text): void
     {
-        $result = $this->send($text);
+        $result = $this->send($text, withAppButton: true);
 
         if (! $result['ok']) {
             Log::error('Уведомление о заказе не отправлено', [

@@ -14,14 +14,11 @@ use Filament\Tables\Table;
 
 class OrderResource extends Resource
 {
-    private const STATUS_LABELS = [
-        'new' => 'Новый', 'awaiting_payment' => 'Ожидает оплаты', 'paid' => 'Оплачен',
-        'shipped' => 'Отправлен', 'completed' => 'Выполнен', 'cancelled' => 'Отменён',
-    ];
+    // Подписи статусов — в модели Order: их показывает и админка, и
+    // мини-приложение бота (App\Http\Controllers\Telegram\OrdersController).
+    private const STATUS_LABELS = Order::STATUS_LABELS;
 
-    private const PAYMENT_STATUS_LABELS = [
-        'pending' => 'Ожидает', 'paid' => 'Оплачен', 'failed' => 'Ошибка', 'refunded' => 'Возврат',
-    ];
+    private const PAYMENT_STATUS_LABELS = Order::PAYMENT_STATUS_LABELS;
 
     protected static ?string $model = Order::class;
 

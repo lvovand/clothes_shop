@@ -34,6 +34,12 @@ class TelegramWebhookController extends Controller
 
         $command = strtolower(explode('@', explode(' ', $text)[0])[0]);
 
+        if ($command === '/orders') {
+            $telegram->sendAppLink((string) $chatId);
+
+            return response('OK');
+        }
+
         if (in_array($command, ['/id', '/start', '/chatid'], true)) {
             $type = $message['chat']['type'] ?? 'private';
 

@@ -50,6 +50,22 @@ Route::post('/webhooks/tbank', [PaymentWebhookController::class, 'tbank'])->name
 Route::post('/webhooks/yandex-pay/v1/webhook', [PaymentWebhookController::class, 'yandexPay'])->name('webhooks.yandex-pay');
 Route::post('/webhooks/telegram', [TelegramWebhookController::class, 'handle'])->name('telegram.webhook');
 
+// Мини-приложение бота: заказы и смена их статусов из Telegram. Доступ — по
+// подписи initData и списку никнеймов («Настройки → Доступ в Telegram-приложение»).
+Route::get('/tg', \App\Http\Controllers\Telegram\MiniAppController::class)->name('telegram.app');
+
+Route::prefix('tg/api')
+    ->middleware('telegram.webapp')
+    ->name('telegram.api.')
+    ->group(function () {
+        Route::get('/orders', [\App\Http\Controllers\Telegram\OrdersController::class, 'index'])->name('orders.index');
+        Route::get('/orders/{order}', [\App\Http\Controllers\Telegram\OrdersController::class, 'show'])->name('orders.show');
+        Route::post('/orders/{order}/status', [\App\Http\Controllers\Telegram\OrdersController::class, 'updateStatus'])->name('orders.status');
+        Route::post('/orders/{order}/shipment/{action}', [\App\Http\Controllers\Telegram\OrdersController::class, 'shipmentAction'])
+            ->whereIn('action', ['create', 'cancel', 'refresh'])
+            ->name('orders.shipment');
+    });
+
 Route::get('/lookbook', [LookbookController::class, 'index'])->name('lookbook.index');
 
 Route::get('/gift-card', [GiftCardController::class, 'show'])->name('gift-card.show');

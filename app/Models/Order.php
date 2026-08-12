@@ -8,6 +8,20 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Order extends Model
 {
+    /**
+     * Подписи статусов. Живут в модели, а не в админке: их показывает и Filament,
+     * и мини-приложение бота — расхождение подписей в двух местах читалось бы как
+     * два разных набора статусов.
+     */
+    public const STATUS_LABELS = [
+        'new' => 'Новый', 'awaiting_payment' => 'Ожидает оплаты', 'paid' => 'Оплачен',
+        'shipped' => 'Отправлен', 'completed' => 'Выполнен', 'cancelled' => 'Отменён',
+    ];
+
+    public const PAYMENT_STATUS_LABELS = [
+        'pending' => 'Ожидает', 'paid' => 'Оплачен', 'failed' => 'Ошибка', 'refunded' => 'Возврат',
+    ];
+
     protected $fillable = [
         'order_number', 'status', 'customer_name', 'customer_phone', 'customer_email',
         'shipping_method_id', 'shipping_address', 'shipping_cost',
@@ -24,6 +38,16 @@ class Order extends Model
     public function shippingMethod(): BelongsTo
     {
         return $this->belongsTo(ShippingMethod::class);
+    }
+
+    public function statusLabel(): string
+    {
+        return self::STATUS_LABELS[$this->status] ?? (string) $this->status;
+    }
+
+    public function paymentStatusLabel(): string
+    {
+        return self::PAYMENT_STATUS_LABELS[$this->payment_status] ?? (string) $this->payment_status;
     }
 
     /**
