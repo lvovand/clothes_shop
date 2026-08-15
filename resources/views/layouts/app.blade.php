@@ -128,9 +128,16 @@
     <script src="{{ $theme('wp-content/themes/ropa-temp/assets/libs/jquery/jquery-3.6.0.min.js') }}"></script>
 
     @stack('styles')
+
+    {{-- Код из админки (Настройки → Код на сайте): счётчики, метрики, пиксели.
+         Выводится как есть — это его смысл, поэтому и добавлять его может только
+         тот, у кого есть доступ в админку. --}}
+    {!! \App\Models\CodeSnippet::render('head') !!}
 </head>
 
 <body>
+
+{!! \App\Models\CodeSnippet::render('body_start') !!}
 
 @include('partials.header')
 
@@ -169,6 +176,8 @@
 <script src="{{ $asset('js/storefront.js') }}"></script>
 
 @stack('scripts')
+
+{!! \App\Models\CodeSnippet::render('body_end') !!}
 
 </body>
 </html>
