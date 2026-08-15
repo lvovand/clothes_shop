@@ -74,3 +74,35 @@ jQuery(function ($) {
 
     apply();
 })();
+
+// Фильтры каталога.
+(function () {
+    var form = document.getElementById('filters-form');
+    if (!form) {
+        return;
+    }
+
+    // Сортировка размечена чекбоксами (так требует CSS эталона), но по смыслу
+    // это переключатель: отмеченным остаётся только последний выбранный.
+    var sortBoxes = form.querySelectorAll('input[type="checkbox"][name="sort"]');
+    Array.prototype.forEach.call(sortBoxes, function (box) {
+        box.addEventListener('change', function () {
+            if (!box.checked) {
+                return;
+            }
+            Array.prototype.forEach.call(sortBoxes, function (other) {
+                if (other !== box) {
+                    other.checked = false;
+                }
+            });
+        });
+    });
+
+    // «Сбросить» — уходим на тот же раздел без параметров фильтра.
+    Array.prototype.forEach.call(document.querySelectorAll('[data-filters-clear]'), function (el) {
+        el.addEventListener('click', function (e) {
+            e.preventDefault();
+            window.location.href = window.location.pathname;
+        });
+    });
+})();

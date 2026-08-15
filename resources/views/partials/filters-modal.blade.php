@@ -119,8 +119,11 @@
                     @foreach(['popularity' => 'по популярности', 'date' => 'по новизне', 'price_asc' => 'цена по возрастанию', 'price_desc' => 'цена по убыванию'] as $key => $label)
                         <li data-term-id="{{ $key }}" data-parent="0" data-term-slug="{{ $key }}">
                             <label class="wpfLiLabel">
+                                {{-- Именно checkbox, а не radio: весь CSS эталона (скрытие поля,
+                                     галочка, круглая форма при data-radio="1") написан под
+                                     input[type="checkbox"]. Единственный выбор обеспечивает JS. --}}
                                 <span class="wpfCheckbox">
-                                    <input type="radio" id="wpfSort{{ $key }}" name="sort" value="{{ $key }}" @checked(request('sort', 'popularity') === $key)>
+                                    <input type="checkbox" id="wpfSort{{ $key }}" name="sort" value="{{ $key }}" @checked(request('sort', 'popularity') === $key)>
                                     <label aria-label="{{ $label }}" for="wpfSort{{ $key }}"></label>
                                 </span>
                                 <span class="wpfDisplay"><span class="wpfValue"><span class="wpfFilterTaxNameWrapper">{{ $label }}</span></span></span>
