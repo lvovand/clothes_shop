@@ -60,9 +60,10 @@ class CdekClient
     /**
      * @param  array{code?: int, city?: string, postal_code?: string}  $toLocation
      * @param  array<int>  $tariffCodes
+     * @param  ?int  $fromCityCode  город отправления; null — город склада по умолчанию
      * @return array<int, array{tariff_code: int, delivery_sum: float, period_min: int, period_max: int}>|null
      */
-    public function calculateTariffs(array $toLocation, array $tariffCodes, float $weightGrams = 1000): ?array
+    public function calculateTariffs(array $toLocation, array $tariffCodes, float $weightGrams = 1000, ?int $fromCityCode = null): ?array
     {
         if (! $this->isConfigured()) {
             return null;
@@ -70,7 +71,9 @@ class CdekClient
 
         $response = $this->client()->post('/calculator/tarifflist', [
             'type' => 1, // "интернет-магазин"
-            'from_location' => ['code' => $this->senderCityCode],
+            // Отправление считается из города того склада, с которого поедет
+            // посылка: заказ из Москвы нельзя считать по оренбургскому тарифу.
+            'from_location' => ['code' => $fromCityCode ?: $this->senderCityCode],
             'to_location' => array_filter($toLocation),
             'packages' => [
                 ['weight' => (int) $weightGrams],

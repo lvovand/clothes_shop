@@ -16,8 +16,9 @@ use Illuminate\Support\Facades\DB;
  *
  * Правила, заданные владельцем:
  *  - самовывоз отгружается только со склада, где есть выдача (Москва);
- *  - доставка (СДЭК/Яндекс) отгружается из Оренбурга, а чего там не хватает —
- *    доезжает из Москвы;
+ *  - доставка (СДЭК/Яндекс) отгружается с того склада, где товар лежит: заказ
+ *    целиком уходит с одного склада, если он его покрывает, иначе делится на два
+ *    отправления, и доставка считается по каждому от его города отгрузки;
  *  - товара нет ни на одном складе — SOLD OUT;
  *  - отмена или удаление заказа возвращает единицы на те склады, откуда списаны.
  *
@@ -100,7 +101,21 @@ class StockService
             return (bool) $pickup;
         }
 
-        $stocks = VariantStock::where('warehouse_id', $pickup->id)
+        return $this->covers($pickup->id, $cart);
+    }
+
+    /**
+     * Лежит ли вся корзина на одном складе.
+     *
+     * @param  array<int, int>  $cart  [variant_id => qty]
+     */
+    public function covers(int $warehouseId, array $cart): bool
+    {
+        if (empty($cart)) {
+            return true;
+        }
+
+        $stocks = VariantStock::where('warehouse_id', $warehouseId)
             ->whereIn('variant_id', array_keys($cart))
             ->pluck('qty', 'variant_id');
 
@@ -111,6 +126,101 @@ class StockService
         }
 
         return true;
+    }
+
+    /**
+     * Разложить корзину по складам: [warehouse_id => [variant_id => qty]].
+     *
+     * Заказ целиком уходит с одного склада, когда такой есть — два отправления
+     * дороже одного и покупателю, и магазину. Если ни один склад не покрывает
+     * заказ, позиции разбираются по очереди списания, и заказ поедет двумя
+     * отправлениями. Чего не хватило нигде — в раскладку не попадает.
+     *
+     * @param  array<int, int>  $cart  [variant_id => qty]
+     * @return array<int, array<int, int>>
+     */
+    public function planCart(array $cart, ?ShippingMethod $method = null): array
+    {
+        $cart = array_filter($cart, fn ($qty) => (int) $qty > 0);
+
+        if (empty($cart)) {
+            return [];
+        }
+
+        $warehouses = $this->warehousesFor($method);
+
+        foreach ($warehouses as $warehouse) {
+            if ($this->covers($warehouse->id, $cart)) {
+                return [$warehouse->id => array_map('intval', $cart)];
+            }
+        }
+
+        $plan = [];
+
+        foreach ($cart as $variantId => $qty) {
+            foreach ($this->planAllocation((int) $variantId, (int) $qty, $method) as $warehouseId => $take) {
+                $plan[$warehouseId][(int) $variantId] = $take;
+            }
+        }
+
+        return $plan;
+    }
+
+    /**
+     * Свести раскладку по складам к складам отгрузки: у склада без своей точки
+     * отправления перевозчик заказ не заберёт, поэтому его позиции уезжают с
+     * основного отгрузочного склада — туда товар довозится внутренним перегоном.
+     * Так же ведёт себя сайт до того, как владелец заполнит второй город.
+     *
+     * @param  array<int, array<int, int>>  $plan  [warehouse_id => [variant_id => qty]]
+     * @return array<int, array<int, int>>
+     */
+    public function shipmentGroups(array $plan, ?string $provider): array
+    {
+        $warehouses = $this->warehouses()->keyBy('id');
+        $fallback = $warehouses->first(fn (Warehouse $warehouse) => $warehouse->shipsVia($provider));
+
+        $groups = [];
+
+        foreach ($plan as $warehouseId => $items) {
+            $warehouse = $warehouses->get($warehouseId);
+            $from = $warehouse && $warehouse->shipsVia($provider) ? $warehouse : $fallback;
+
+            if (! $from) {
+                continue;
+            }
+
+            foreach ($items as $variantId => $qty) {
+                $groups[$from->id][$variantId] = ($groups[$from->id][$variantId] ?? 0) + (int) $qty;
+            }
+        }
+
+        return $groups;
+    }
+
+    /**
+     * Отгрузки заказа: [warehouse_id => [variant_id => qty]] по фактическому
+     * списанию, сведённые к складам отгрузки. По одной заявке перевозчику на группу.
+     *
+     * @return array<int, array<int, int>>
+     */
+    public function orderShipmentGroups(Order $order): array
+    {
+        $order->loadMissing('items', 'shippingMethod');
+
+        $plan = [];
+
+        foreach ($order->items as $item) {
+            foreach ((array) $item->stock_allocation as $warehouseId => $qty) {
+                if ((int) $qty <= 0 || ! $item->variant_id) {
+                    continue;
+                }
+                $plan[(int) $warehouseId][(int) $item->variant_id] =
+                    ($plan[(int) $warehouseId][(int) $item->variant_id] ?? 0) + (int) $qty;
+            }
+        }
+
+        return $this->shipmentGroups($plan, $order->shippingMethod?->provider());
     }
 
     /**
@@ -144,12 +254,43 @@ class StockService
      */
     public function allocateForOrder(Order $order, ?ShippingMethod $method = null): void
     {
+        // Раскладка считается по всей корзине сразу, а не по каждой позиции
+        // отдельно: иначе заказ, целиком лежащий на одном складе, всё равно
+        // разъехался бы по двум — и доставка списалась бы не так, как посчитана.
+        $cart = [];
+        foreach ($order->items as $item) {
+            if ($item->variant_id) {
+                $cart[$item->variant_id] = ($cart[$item->variant_id] ?? 0) + (int) $item->qty;
+            }
+        }
+
+        $planned = $this->planCart($cart, $method);
+
         foreach ($order->items as $item) {
             if (! $item->variant_id) {
                 continue;
             }
 
-            $plan = $this->planAllocation($item->variant_id, (int) $item->qty, $method);
+            // Из общей раскладки вынимаем долю этой строки: одинаковых вариантов
+            // в заказе две строки быть не должно, но если они есть — каждая
+            // получит своё, а не одно и то же.
+            $plan = [];
+            $left = (int) $item->qty;
+
+            foreach ($planned as $warehouseId => $items) {
+                $available = (int) ($items[$item->variant_id] ?? 0);
+                $take = min($left, $available);
+
+                if ($take > 0) {
+                    $plan[$warehouseId] = $take;
+                    $planned[$warehouseId][$item->variant_id] = $available - $take;
+                    $left -= $take;
+                }
+
+                if ($left <= 0) {
+                    break;
+                }
+            }
 
             foreach ($plan as $warehouseId => $qty) {
                 $this->apply($item->variant_id, (int) $warehouseId, -$qty, 'order', [

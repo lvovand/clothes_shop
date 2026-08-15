@@ -271,7 +271,15 @@ class CheckoutController extends Controller
 
             try {
                 if ($result['ok']) {
-                    $telegram->shipmentCreated($order, (string) $result['shipment']->tracking_number, $result['shipment']->pvz_address);
+                    // Заказ с двух складов уезжает двумя отправлениями — сообщаем
+                    // о каждом, номера у них разные.
+                    foreach ($result['shipments'] ?? array_filter([$result['shipment'] ?? null]) as $shipment) {
+                        $telegram->shipmentCreated($order, (string) $shipment->tracking_number, $shipment->pvz_address);
+                    }
+
+                    if ($reason) {
+                        $telegram->shipmentFailed($order, $reason);
+                    }
                 } else {
                     $telegram->shipmentFailed($order, (string) ($result['reason'] ?? 'неизвестная причина'));
                 }

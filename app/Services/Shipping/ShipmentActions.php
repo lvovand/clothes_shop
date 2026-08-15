@@ -28,6 +28,7 @@ class ShipmentActions
         private readonly CdekDispatcher $cdek,
         private readonly CdekClient $cdekClient,
         private readonly YandexDeliveryClient $yandex,
+        private readonly \App\Services\StockService $stock,
     ) {
     }
 
@@ -48,14 +49,51 @@ class ShipmentActions
         return $query->latest('id')->first();
     }
 
+    /**
+     * Заказ может ехать двумя отправлениями (товар лежит на двух складах),
+     * поэтому кнопка остаётся доступной, пока заявка есть не по каждому складу.
+     */
     public function canCreate(Order $order): bool
     {
-        return $this->carrierName($order) !== null && ! $this->shipment($order);
+        if ($this->carrierName($order) === null) {
+            return false;
+        }
+
+        $groups = array_keys($this->stock->orderShipmentGroups($order));
+
+        if (! $groups) {
+            return ! $this->shipment($order);
+        }
+
+        $covered = $order->shipments()
+            ->whereNotNull('tracking_number')
+            ->where('status', '!=', 'cancelled')
+            ->pluck('warehouse_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        return (bool) array_diff($groups, $covered);
     }
 
     public function canCancel(Order $order): bool
     {
-        return (bool) $this->shipment($order, cancelled: false);
+        return $this->shipments($order, cancelled: false)->isNotEmpty();
+    }
+
+    /**
+     * Все заявки по заказу; $cancelled = false — только действующие.
+     *
+     * @return \Illuminate\Support\Collection<int, Shipment>
+     */
+    public function shipments(Order $order, ?bool $cancelled = null): \Illuminate\Support\Collection
+    {
+        $query = $order->shipments()->whereNotNull('tracking_number');
+
+        if ($cancelled === false) {
+            $query->where('status', '!=', 'cancelled');
+        }
+
+        return $query->orderBy('id')->get();
     }
 
     /**
@@ -64,11 +102,19 @@ class ShipmentActions
      */
     public function canRefreshNumber(Order $order): bool
     {
-        $shipment = $this->shipment($order, cancelled: false);
+        return $this->awaitingNumber($order)->isNotEmpty();
+    }
 
-        return $shipment
-            && $shipment->provider === 'cdek'
-            && $shipment->tracking_number === ($shipment->raw_response['uuid'] ?? null);
+    /**
+     * Заявки СДЭК, у которых номера накладной ещё нет.
+     *
+     * @return \Illuminate\Support\Collection<int, Shipment>
+     */
+    private function awaitingNumber(Order $order): \Illuminate\Support\Collection
+    {
+        return $this->shipments($order, cancelled: false)
+            ->filter(fn (Shipment $shipment) => $shipment->provider === 'cdek'
+                && $shipment->tracking_number === ($shipment->raw_response['uuid'] ?? null));
     }
 
     /**
@@ -88,60 +134,95 @@ class ShipmentActions
             ];
         }
 
-        $shipment = $result['shipment'];
+        $shipments = $result['shipments'] ?? array_filter([$result['shipment'] ?? null]);
 
-        $this->notify(fn (TelegramNotifier $telegram) => $telegram->shipmentCreated(
-            $order,
-            (string) $shipment->tracking_number,
-            $shipment->pvz_address,
-        ));
+        foreach ($shipments as $shipment) {
+            $this->notify(fn (TelegramNotifier $telegram) => $telegram->shipmentCreated(
+                $order,
+                (string) $shipment->tracking_number,
+                $shipment->pvz_address,
+            ));
+        }
+
+        $numbers = collect($shipments)
+            ->map(fn (Shipment $shipment) => $this->label($shipment))
+            ->implode(', ');
 
         return [
             'ok' => true,
-            'message' => 'Заявка создана, номер: '.$shipment->tracking_number,
-            'shipment' => $shipment,
+            // Заказ с двух складов едет двумя отправлениями — номеров тоже два.
+            'message' => (count($shipments) > 1 ? 'Заявки созданы, номера: ' : 'Заявка создана, номер: ').$numbers
+                .($result['reason'] ?? null ? '. Не удалось: '.$result['reason'] : ''),
+            'shipment' => $shipments[0] ?? null,
         ];
+    }
+
+    /** Номер заявки со складом отгрузки, когда отправлений несколько. */
+    private function label(Shipment $shipment): string
+    {
+        $warehouse = $shipment->warehouse?->name;
+
+        return $warehouse ? $shipment->tracking_number.' ('.$warehouse.')' : (string) $shipment->tracking_number;
     }
 
     /** @return array{ok: bool, message: string} */
     public function cancel(Order $order): array
     {
-        $shipment = $this->shipment($order, cancelled: false);
+        $shipments = $this->shipments($order, cancelled: false);
 
-        if (! $shipment) {
+        if ($shipments->isEmpty()) {
             return ['ok' => false, 'message' => 'Действующей заявки нет.'];
         }
 
-        $result = $shipment->provider === 'cdek'
-            ? $this->cdekClient->deleteOrder((string) ($shipment->raw_response['uuid'] ?? ''))
-            : $this->yandex->cancelRequest((string) $shipment->tracking_number);
+        $cancelled = 0;
+        $errors = [];
 
-        if (! $result['ok']) {
-            return ['ok' => false, 'message' => $result['reason'] ?? 'Перевозчик отклонил отмену'];
+        foreach ($shipments as $shipment) {
+            $result = $shipment->provider === 'cdek'
+                ? $this->cdekClient->deleteOrder((string) ($shipment->raw_response['uuid'] ?? ''))
+                : $this->yandex->cancelRequest((string) $shipment->tracking_number);
+
+            if (! $result['ok']) {
+                $errors[] = $this->label($shipment).': '.($result['reason'] ?? 'перевозчик отклонил отмену');
+
+                continue;
+            }
+
+            $shipment->update(['status' => 'cancelled']);
+            $cancelled++;
         }
 
-        $shipment->update(['status' => 'cancelled']);
+        if (! $cancelled) {
+            return ['ok' => false, 'message' => implode('; ', $errors)];
+        }
 
-        return ['ok' => true, 'message' => 'Заявка отменена.'];
+        return [
+            'ok' => true,
+            'message' => ($cancelled > 1 ? 'Заявки отменены.' : 'Заявка отменена.')
+                .($errors ? ' Не удалось: '.implode('; ', $errors) : ''),
+        ];
     }
 
     /** @return array{ok: bool, message: string, number: ?string} */
     public function refreshNumber(Order $order): array
     {
-        $shipment = $this->shipment($order, cancelled: false);
+        $awaiting = $this->awaitingNumber($order);
 
-        if (! $shipment) {
+        if ($awaiting->isEmpty()) {
             return ['ok' => false, 'message' => 'Действующей заявки нет.', 'number' => null];
         }
 
-        $number = $this->cdek->refreshNumber($shipment);
+        $numbers = $awaiting
+            ->map(fn (Shipment $shipment) => $this->cdek->refreshNumber($shipment))
+            ->filter()
+            ->values();
 
         return [
-            'ok' => (bool) $number,
-            'message' => $number
-                ? 'Номер накладной: '.$number
+            'ok' => $numbers->isNotEmpty(),
+            'message' => $numbers->isNotEmpty()
+                ? 'Номер накладной: '.$numbers->implode(', ')
                 : 'СДЭК ещё не выдал номер — заявка принята, накладная оформляется. Попробуйте через минуту.',
-            'number' => $number,
+            'number' => $numbers->first(),
         ];
     }
 

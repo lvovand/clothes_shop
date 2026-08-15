@@ -81,24 +81,30 @@ class OrderResource extends Resource
                             ->columnSpanFull()
                             ->visible(fn (?\App\Models\Order $record) => $record?->shippingMethod?->provider() === 'yandex')
                             ->content(function (?\App\Models\Order $record) {
-                                $shipment = $record?->shipments()
+                                // Заявок бывает две: заказ с товаром на двух складах
+                                // едет двумя отправлениями, у каждого свой номер.
+                                $shipments = $record?->shipments()
                                     ->where('provider', 'yandex')
                                     ->whereNotNull('tracking_number')
-                                    ->latest('id')
-                                    ->first();
+                                    ->with('warehouse')
+                                    ->orderBy('id')
+                                    ->get();
 
-                                if (! $shipment) {
+                                if (! $shipments || $shipments->isEmpty()) {
                                     return 'Заявка ещё не создана.';
                                 }
 
-                                $status = match ($shipment->status) {
-                                    'created' => 'создана',
-                                    'cancelled' => 'отменена',
-                                    default => $shipment->status,
-                                };
+                                return $shipments->map(function ($shipment) {
+                                    $status = match ($shipment->status) {
+                                        'created' => 'создана',
+                                        'cancelled' => 'отменена',
+                                        default => $shipment->status,
+                                    };
 
-                                return 'Номер: '.$shipment->tracking_number.' — '.$status
-                                    .($shipment->pvz_address ? ' (ПВЗ: '.$shipment->pvz_address.')' : '');
+                                    return ($shipment->warehouse ? $shipment->warehouse->name.' — ' : '')
+                                        .'номер: '.$shipment->tracking_number.' — '.$status
+                                        .($shipment->pvz_address ? ' (ПВЗ: '.$shipment->pvz_address.')' : '');
+                                })->implode('; ');
                             }),
                         // Поле хранится массивом (cast 'array'), а Textarea показывает
                         // строку — без преобразования на экране было буквально

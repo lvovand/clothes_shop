@@ -37,10 +37,13 @@ class YandexDeliveryClient
         return (string) $this->token !== '';
     }
 
-    /** Для расчётов нужна ещё и точка, куда магазин сдаёт посылки. */
-    public function canCalculate(): bool
+    /**
+     * Для расчётов нужна ещё и точка, куда магазин сдаёт посылки. У каждого склада
+     * она своя — общая настройка осталась запасной на случай склада без своей точки.
+     */
+    public function canCalculate(?string $sourcePointId = null): bool
     {
-        return $this->isConfigured() && (string) $this->dropoffPointId !== '';
+        return $this->isConfigured() && (string) ($sourcePointId ?: $this->dropoffPointId) !== '';
     }
 
     private function client()
@@ -151,11 +154,12 @@ class YandexDeliveryClient
      *
      * @param  array<int, array{name: string, article: string, qty: int, price: float}>  $items
      * @param  array{point_id?: string, latitude?: float, longitude?: float, address?: string}  $to
+     * @param  ?string  $sourcePointId  точка сдачи склада-отправителя; null — общая
      * @return array{cost: float, offer_id: string, delivery_min: ?string, delivery_max: ?string}|null
      */
-    public function quote(array $items, array $to, string $requestId, array $dims = []): ?array
+    public function quote(array $items, array $to, string $requestId, array $dims = [], ?string $sourcePointId = null): ?array
     {
-        $offers = $this->offers($items, $to, $requestId, $dims);
+        $offers = $this->offers($items, $to, $requestId, $dims, $sourcePointId);
 
         if (! $offers) {
             return null;
@@ -186,9 +190,9 @@ class YandexDeliveryClient
      *
      * @return array<int, array<string, mixed>>|null
      */
-    public function offers(array $items, array $to, string $requestId, array $dims = []): ?array
+    public function offers(array $items, array $to, string $requestId, array $dims = [], ?string $sourcePointId = null): ?array
     {
-        if (! $this->canCalculate()) {
+        if (! $this->canCalculate($sourcePointId)) {
             return null;
         }
 
@@ -206,7 +210,7 @@ class YandexDeliveryClient
                 'first_name' => (string) ($this->senderName ?: 'ROPA WORLD'),
                 'last_name' => '',
             ],
-            'source' => ['platform_station' => ['platform_id' => $this->dropoffPointId]],
+            'source' => ['platform_station' => ['platform_id' => $sourcePointId ?: $this->dropoffPointId]],
             'destination' => $destination,
             'items' => $this->items($items, $requestId, $dims),
             'places' => [[

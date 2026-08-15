@@ -63,7 +63,6 @@ class OrdersController extends Controller
         $order->load(['items', 'shippingMethod', 'payments' => fn ($q) => $q->latest('id')]);
 
         $actions = app(ShipmentActions::class);
-        $shipment = $actions->shipment($order);
         $method = $order->shippingMethod;
         $address = (array) $order->shipping_address;
         $warehouses = Warehouse::pluck('name', 'id');
@@ -94,7 +93,9 @@ class OrdersController extends Controller
                     'days' => $method?->config['delivery_days'] ?? null,
                     'cost' => (float) $order->shipping_cost,
                 ],
-                'shipment' => $shipment ? [
+                // Заявок может быть две: заказ с товаром на двух складах едет
+                // двумя отправлениями, у каждого свой номер.
+                'shipments' => $actions->shipments($order)->map(fn ($shipment) => [
                     'provider' => ShipmentActions::CARRIERS[$shipment->provider] ?? $shipment->provider,
                     'number' => $shipment->tracking_number,
                     'status' => match ($shipment->status) {
@@ -102,8 +103,9 @@ class OrdersController extends Controller
                         'cancelled' => 'отменена',
                         default => (string) $shipment->status,
                     },
+                    'warehouse' => $warehouses[$shipment->warehouse_id] ?? null,
                     'pvz_address' => $shipment->pvz_address,
-                ] : null,
+                ])->values()->all(),
                 'shipment_actions' => [
                     'can_create' => $actions->canCreate($order),
                     'can_cancel' => $actions->canCancel($order),

@@ -25,11 +25,15 @@ class ShippingPaymentSettings extends Page implements HasForms
 
     protected static string $view = 'filament.pages.shipping-payment-settings';
 
+    /**
+     * Точки отправления (город и пункт сдачи у СДЭК, точка сдачи у Яндекса) здесь
+     * больше не задаются: они принадлежат складу — «Склад → Склады». Заказ едет
+     * из того города, где лежит товар, поэтому одной общей настройки мало.
+     */
     private const KEYS = [
-        'cdek_client_id', 'cdek_client_secret', 'cdek_sender_city_code', 'yandex_map_api_key',
-        'yandex_delivery_token', 'yandex_delivery_dropoff_city', 'yandex_delivery_dropoff_id',
+        'cdek_client_id', 'cdek_client_secret', 'yandex_map_api_key',
+        'yandex_delivery_token',
         'yandex_delivery_sender_phone', 'yandex_delivery_sender_name',
-        'cdek_shipment_point',
         'parcel_weight', 'parcel_dx', 'parcel_dy', 'parcel_dz',
         'yandex_auto_create', 'cdek_auto_create',
         'tbank_terminal_key', 'tbank_secret_key',
@@ -81,40 +85,13 @@ class ShippingPaymentSettings extends Page implements HasForms
                     ->schema([
                         Forms\Components\TextInput::make('cdek_client_id')->label('Client ID'),
                         Forms\Components\TextInput::make('cdek_client_secret')->label('Client Secret')->password()->revealable(),
-                        // Хранится по-прежнему числовой код СДЭК (его требует API),
-                        // но вводится он поиском по названию: раньше владельцу
-                        // приходилось где-то узнавать, что Москва — это 44.
-                        Forms\Components\Select::make('cdek_sender_city_code')
-                            ->label('Город отправления (СДЭК)')
-                            ->searchable()
-                            ->getSearchResultsUsing(fn (string $search) => collect(
-                                app(\App\Services\Cdek\CdekClient::class)->suggestCities($search, 12)
-                            )->pluck('label', 'code')->all())
-                            ->getOptionLabelUsing(function ($value) {
-                                $city = app(\App\Services\Cdek\CdekClient::class)->cityByCode((int) $value);
-
-                                // Если справочник недоступен (нет ключей, API молчит) —
-                                // показываем хотя бы сохранённый код, а не пустое поле.
-                                return $city['label'] ?? 'Код '.$value;
-                            })
-                            ->helperText('Населённый пункт, откуда отправляются заказы. Начните вводить название — список подтянется из справочника СДЭК. Работает только когда заполнены Client ID и Client Secret выше.'),
-                        // Тарифы магазина — «склад–склад» и «склад–дверь», то есть
-                        // посылки сдаются в пункт СДЭК: без его кода заявку создать
-                        // нельзя. Список — только пункты, принимающие отправления.
-                        Forms\Components\Select::make('cdek_shipment_point')
-                            ->label('Пункт сдачи посылок (СДЭК)')
-                            ->searchable()
+                        // Город отправления и пункт сдачи переехали к складу: заказ
+                        // едет оттуда, где лежит товар, и у каждого города отгрузки
+                        // свои точки.
+                        Forms\Components\Placeholder::make('cdek_origin_hint')
+                            ->label('Откуда отправляются заказы')
                             ->columnSpanFull()
-                            ->options(function () {
-                                $city = (int) SiteSetting::get('cdek_sender_city_code', 0);
-
-                                return $city
-                                    ? collect(app(\App\Services\Cdek\CdekClient::class)->receptionPoints($city))
-                                        ->pluck('label', 'code')
-                                        ->all()
-                                    : [];
-                            })
-                            ->helperText('Пункт СДЭК, куда магазин привозит заказы — по нему оформляется заявка. Список берётся по городу отправления выше: смените город, сохраните и вернитесь на страницу, чтобы список обновился.'),
+                            ->content('Город отправления и пункт сдачи посылок задаются у каждого склада — «Склад → Склады». Доставка считается от того города, где лежит товар: заказ из Москвы не считается по оренбургскому тарифу.'),
                         Forms\Components\Toggle::make('cdek_auto_create')
                             ->label('Создавать заявку автоматически')
                             ->default(true)
@@ -143,15 +120,9 @@ class ShippingPaymentSettings extends Page implements HasForms
                             ->revealable()
                             ->live(onBlur: true)
                             ->helperText('Строка вида y0_… Без него способы доставки Яндекса не считаются.'),
-                        Forms\Components\TextInput::make('yandex_delivery_dropoff_city')
-                            ->label('Город, где сдаём посылки')
-                            ->default('Москва')
-                            ->live(onBlur: true)
-                            ->helperText('Впишите любой город — по нему подберутся точки сдачи ниже. «Москва» здесь просто значение по умолчанию.'),
-                        \App\Forms\Components\YandexDropoffPicker::make('yandex_delivery_dropoff_id')
-                            ->label('Точка сдачи посылок')
-                            ->columnSpanFull()
-                            ->helperText('Склад или пункт Яндекса, куда магазин привозит заказы. Точки показываются по городу из поля выше — смените город там, и список обновится. Нажмите «Показать точки на карте», выберите точку: метка со звёздочкой это склад Яндекса, точка — пункт выдачи, принимающий посылки. Поиск справа фильтрует уже загруженные точки этого города.'),
+                        Forms\Components\Placeholder::make('yandex_dropoff_hint')
+                            ->label('Откуда сдаём посылки')
+                            ->content('Город и точка сдачи задаются у каждого склада — «Склад → Склады». Там же карта с точками Яндекса.'),
                         Forms\Components\TextInput::make('yandex_delivery_sender_phone')
                             ->label('Телефон отправителя')
                             ->helperText('В формате +7… Если пусто — берётся телефон из контактов сайта.'),

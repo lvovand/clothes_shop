@@ -47,6 +47,10 @@ class ShipmentsRelationManager extends RelationManager
                     // Перевозчик берётся из способа доставки заказа: раньше здесь
                     // жёстко стоял cdek, и у заказа Яндексом подставлялся чужой.
                     ->default(fn () => $this->getOwnerRecord()->shippingMethod?->provider()),
+                Forms\Components\Select::make('warehouse_id')
+                    ->label('Со склада')
+                    ->relationship('warehouse', 'name')
+                    ->helperText('Откуда уехало отправление. У заказа с товаром на двух складах заявок две — по одной на склад.'),
                 Forms\Components\TextInput::make('tracking_number')->label('Трек-номер'),
                 Forms\Components\TextInput::make('pvz_code')->label('Код ПВЗ'),
                 Forms\Components\Textarea::make('pvz_address')->label('Адрес ПВЗ')->columnSpanFull(),
@@ -62,6 +66,10 @@ class ShipmentsRelationManager extends RelationManager
             ->emptyStateDescription('Для Яндекс Доставки заявка создаётся сама после оплаты — или кнопкой «Создать заявку» вверху страницы. Для остальных перевозчиков отправление можно завести здесь вручную.')
             ->columns([
                 Tables\Columns\TextColumn::make('provider')->label('Провайдер'),
+                // Заказ с двух складов едет двумя отправлениями — видно, какое откуда.
+                Tables\Columns\TextColumn::make('warehouse.name')
+                    ->label('Со склада')
+                    ->placeholder('—'),
                 Tables\Columns\TextColumn::make('tracking_number')->label('Трек-номер'),
                 Tables\Columns\TextColumn::make('pvz_code')->label('ПВЗ'),
                 Tables\Columns\TextColumn::make('status')->label('Статус')->badge(),

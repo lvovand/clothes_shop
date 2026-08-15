@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\ShippingMethod;
 use App\Models\SiteSetting;
 use App\Models\Variant;
+use App\Models\Warehouse;
 use App\Services\Cdek\CdekClient;
 use App\Services\YandexDelivery\YandexDeliveryClient;
 use Illuminate\Support\Carbon;
@@ -51,46 +52,87 @@ class OrderService
         $subtotal = $this->subtotalFor($cart);
         $free = $method->free_from_amount !== null && $subtotal >= (float) $method->free_from_amount;
 
-        // Бесплатная доставка — это про цену, а не про скорость: срок всё равно
-        // нужен, поэтому считаем его и здесь, а цену просто обнуляем.
-        $result = match ($method->provider()) {
-            'cdek' => $this->cdekShipping($method, $cart, $city),
-            'yandex' => $this->yandexShipping($method, $cart, $city, $destination),
-            default => [
-                'cost' => (float) ($method->flat_cost ?? 0),
-                // У своих способов интеграции нет — срок задаётся в админке.
-                'days' => $this->ownDays($method),
-            ],
-        };
+        // Заказ, разложенный на два склада, едет двумя отправлениями: цена —
+        // сумма обоих, срок — по тому, что приедет позже. Пустая раскладка
+        // (остатков нет вовсе) считается как одно отправление с обычной точкой
+        // отправления: покупателю всё равно нужно показать цену, а не прочерк.
+        $groups = $this->stock->shipmentGroups(
+            $this->stock->planCart($cart, $method),
+            $method->provider(),
+        ) ?: [0 => $cart];
 
-        if ($free && $result['cost'] !== null) {
-            $result['cost'] = 0.0;
+        $warehouses = Warehouse::whereIn('id', array_keys($groups))->get()->keyBy('id');
+
+        $cost = 0.0;
+        $min = null;
+        $max = null;
+        // Срок своего способа доставки: он вписан руками и в днях не выражен.
+        $ownDays = null;
+
+        foreach ($groups as $warehouseId => $part) {
+            $from = $warehouses->get($warehouseId);
+
+            // Бесплатная доставка — это про цену, а не про скорость: срок всё равно
+            // нужен, поэтому считаем его и здесь, а цену просто обнуляем.
+            $result = match ($method->provider()) {
+                'cdek' => $this->cdekShipping($method, $part, $city, $from),
+                'yandex' => $this->yandexShipping($method, $part, $city, $destination, $from),
+                default => [
+                    'cost' => (float) ($method->flat_cost ?? 0),
+                    // У своих способов интеграции нет — срок задаётся в админке.
+                    'min' => null, 'max' => null, 'days' => $this->ownDays($method),
+                ],
+            };
+
+            if ($result['cost'] === null) {
+                return ['cost' => null, 'days' => null];
+            }
+
+            // Своя (не перевозчиковая) цена — фиксированная за заказ, а не за
+            // отправление: складывать её по группам было бы двойным списанием.
+            $cost = $method->provider() === 'none'
+                ? (float) $result['cost']
+                : $cost + (float) $result['cost'];
+
+            $min = max($min, $result['min'] ?? null);
+            $max = max($max, $result['max'] ?? null);
+
+            $ownDays ??= $result['days'] ?? null;
         }
 
-        return $result;
+        return [
+            'cost' => $free ? 0.0 : round($cost, 2),
+            'days' => $this->daysLabel($min, $max) ?? ($ownDays ?? null),
+        ];
     }
 
-    /** @return array{cost: ?float, days: ?string} */
-    private function cdekShipping(ShippingMethod $method, array $cart, ?string $city): array
+    /** @return array{cost: ?float, min: ?int, max: ?int} */
+    private function cdekShipping(ShippingMethod $method, array $cart, ?string $city, ?Warehouse $from = null): array
     {
         if (! $city) {
-            return ['cost' => (float) ($method->flat_cost ?? 0), 'days' => $this->ownDays($method)];
+            return ['cost' => (float) ($method->flat_cost ?? 0), 'min' => null, 'max' => null];
         }
 
         $cityCode = $this->cdek->findCityCode($city);
         if (! $cityCode) {
-            return ['cost' => null, 'days' => null];
+            return ['cost' => null, 'min' => null, 'max' => null];
         }
 
         $weight = $this->totalWeightGrams($cart);
         $tariffCode = $method->config['tariff_code'] ?? null;
-        $tariffs = $this->cdek->calculateTariffs(['code' => $cityCode], [$tariffCode], $weight);
+        $tariffs = $this->cdek->calculateTariffs(
+            ['code' => $cityCode],
+            [$tariffCode],
+            $weight,
+            $from?->cdek_sender_city_code,
+        );
         $tariff = $tariffs[0] ?? null;
 
         return [
             'cost' => $tariff['delivery_sum'] ?? null,
             // СДЭК отдаёт срок сразу в рабочих днях — это ровно то, что нужно показать.
-            'days' => $this->daysLabel($tariff['period_min'] ?? null, $tariff['period_max'] ?? null),
+            'min' => $tariff['period_min'] ?? null,
+            'max' => $tariff['period_max'] ?? null,
         ];
     }
 
@@ -143,19 +185,19 @@ class OrderService
      * (его идентификатор) либо адрес получателя. Пока покупатель их не указал,
      * посчитать нечего — возвращаем null, и чекаут просит уточнить данные.
      */
-    private function yandexShipping(ShippingMethod $method, array $cart, ?string $city, array $destination): array
+    private function yandexShipping(ShippingMethod $method, array $cart, ?string $city, array $destination, ?Warehouse $from = null): array
     {
         $to = [];
 
         if ($method->needsPickupPoint()) {
             if (empty($destination['pvz_code'])) {
-                return ['cost' => null, 'days' => null];
+                return ['cost' => null, 'min' => null, 'max' => null];
             }
             $to['point_id'] = $destination['pvz_code'];
         } else {
             $address = trim(implode(', ', array_filter([$city, $destination['address'] ?? null])));
             if ($address === '') {
-                return ['cost' => null, 'days' => null];
+                return ['cost' => null, 'min' => null, 'max' => null];
             }
             $to['address'] = $address;
         }
@@ -165,19 +207,21 @@ class OrderService
             $to,
             'quote-'.Str::random(12),
             $this->yandexDims(),
+            $from?->yandex_dropoff_id,
         );
 
         return [
             'cost' => $quote['cost'] ?? null,
-            'days' => $this->yandexDays($quote['delivery_min'] ?? null, $quote['delivery_max'] ?? null),
-        ];
+        ] + $this->yandexDays($quote['delivery_min'] ?? null, $quote['delivery_max'] ?? null);
     }
 
     /**
      * Яндекс отдаёт не количество дней, а сам интервал доставки в UTC
      * («2026-08-16T07:00:00.000000Z») — переводим его в дни от сегодняшней даты.
+     *
+     * @return array{min: ?int, max: ?int}
      */
-    private function yandexDays(?string $from, ?string $to): ?string
+    private function yandexDays(?string $from, ?string $to): array
     {
         $days = function (?string $value): ?int {
             if (! $value) {
@@ -196,7 +240,7 @@ class OrderService
             }
         };
 
-        return $this->daysLabel($days($from), $days($to));
+        return ['min' => $days($from), 'max' => $days($to)];
     }
 
     /** @return array<int, array{name: string, article: string, qty: int, price: float}> */

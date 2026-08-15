@@ -13,8 +13,8 @@
                 window.initYandexDropoffPicker(this, {
                     pointsUrl: @js(route('admin.yandex-delivery.points')),
                     mapKey: @js(\App\Models\SiteSetting::get('yandex_map_api_key', config('services.cdek.yandex_map_api_key'))),
-                    cityPath: 'data.yandex_delivery_dropoff_city',
-                    tokenPath: 'data.yandex_delivery_token',
+                    cityPath: @js($getCityStatePath()),
+                    tokenPath: @js($getTokenStatePath()),
                 })
             },
         }"
@@ -81,7 +81,9 @@
 
                 try {
                     const city = this.$wire.get(config.cityPath) || 'Москва';
-                    const token = this.$wire.get(config.tokenPath) || '';
+                    // Токен редактируется только в настройках сайта; в карточке
+                    // склада его поля нет — там он берётся на сервере.
+                    const token = config.tokenPath ? (this.$wire.get(config.tokenPath) || '') : '';
                     const url = config.pointsUrl + '?city=' + encodeURIComponent(city) + '&token=' + encodeURIComponent(token);
                     const response = await fetch(url, { headers: { Accept: 'application/json' } });
                     const json = await response.json();

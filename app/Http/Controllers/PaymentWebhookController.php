@@ -208,12 +208,20 @@ class PaymentWebhookController extends Controller
         }
 
         try {
-            $shipment = $result['shipment'];
-            $telegram->shipmentCreated(
-                $order,
-                (string) $shipment->tracking_number,
-                $shipment->pvz_address ?: ($order->shipping_address['address'] ?? null),
-            );
+            // Заказ, разложенный на два склада, уезжает двумя отправлениями:
+            // сообщаем номер по каждому.
+            foreach ($result['shipments'] ?? array_filter([$result['shipment'] ?? null]) as $shipment) {
+                $telegram->shipmentCreated(
+                    $order,
+                    (string) $shipment->tracking_number,
+                    $shipment->pvz_address ?: ($order->shipping_address['address'] ?? null),
+                );
+            }
+
+            // Часть отправлений могла не пройти — об этом тоже нужно знать.
+            if ($result['reason'] ?? null) {
+                $this->notifyShipmentFailure($order, $telegram, (string) $result['reason']);
+            }
         } catch (\Throwable $e) {
             Log::error('Telegram notify failed', ['error' => $e->getMessage()]);
         }

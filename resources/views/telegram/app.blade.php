@@ -313,8 +313,12 @@ function detailsHtml(order) {
     parts.push(row('Срок', d.days));
     parts.push(row('Стоимость', money(d.cost)));
 
-    if (order.shipment) {
-        parts.push(row('Заявка', order.shipment.provider + ': ' + order.shipment.number + ' — ' + order.shipment.status));
+    // Заявок бывает две: заказ с двух складов едет двумя отправлениями.
+    if (order.shipments && order.shipments.length) {
+        order.shipments.forEach(shipment => parts.push(row(
+            shipment.warehouse ? 'Заявка (' + shipment.warehouse + ')' : 'Заявка',
+            shipment.provider + ': ' + shipment.number + ' — ' + shipment.status,
+        )));
     } else {
         parts.push(row('Заявка', 'не создана'));
     }
