@@ -50,7 +50,7 @@ Route::post('/webhooks/tbank', [PaymentWebhookController::class, 'tbank'])->name
 Route::post('/webhooks/yandex-pay/v1/webhook', [PaymentWebhookController::class, 'yandexPay'])->name('webhooks.yandex-pay');
 Route::post('/webhooks/telegram', [TelegramWebhookController::class, 'handle'])->name('telegram.webhook');
 
-// Мини-приложение бота: заказы и смена их статусов из Telegram. Доступ — по
+// Мини-приложение бота: заказы и товары (остатки по складам) из Telegram. Доступ — по
 // подписи initData и списку никнеймов («Настройки → Доступ в Telegram-приложение»).
 Route::get('/tg', \App\Http\Controllers\Telegram\MiniAppController::class)->name('telegram.app');
 
@@ -64,6 +64,14 @@ Route::prefix('tg/api')
         Route::post('/orders/{order}/shipment/{action}', [\App\Http\Controllers\Telegram\OrdersController::class, 'shipmentAction'])
             ->whereIn('action', ['create', 'cancel', 'refresh'])
             ->name('orders.shipment');
+
+        // Товары: остатки по складам, цена и видимость. Товар подставляется по id,
+        // а не по slug (getRouteKeyName у модели) — приложение работает с числами.
+        Route::get('/products', [\App\Http\Controllers\Telegram\ProductsController::class, 'index'])->name('products.index');
+        Route::get('/products/{product:id}', [\App\Http\Controllers\Telegram\ProductsController::class, 'show'])->name('products.show');
+        Route::post('/products/{product:id}/flags', [\App\Http\Controllers\Telegram\ProductsController::class, 'updateFlags'])->name('products.flags');
+        Route::post('/products/{product:id}/variants/{variant}/stock', [\App\Http\Controllers\Telegram\ProductsController::class, 'updateStock'])->name('products.stock');
+        Route::post('/products/{product:id}/variants/{variant}/price', [\App\Http\Controllers\Telegram\ProductsController::class, 'updatePrice'])->name('products.price');
     });
 
 Route::get('/lookbook', [LookbookController::class, 'index'])->name('lookbook.index');
