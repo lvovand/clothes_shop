@@ -58,7 +58,8 @@ class CatalogController extends Controller
 
         return view('catalog', [
             'products' => $products,
-            'title' => $category?->name ?? 'ALL',
+            'title' => $category?->meta_title ?: ($category?->name ?? 'ALL'),
+            'metaDescription' => $category?->meta_description ?: null,
             'category' => $category,
             'colorValues' => Attribute::where('code', 'color')->first()?->values()->orderBy('sort_order')->get() ?? collect(),
             'sizeValues' => Attribute::where('code', 'size')->first()?->values()->orderBy('sort_order')->get() ?? collect(),

@@ -91,4 +91,10 @@ Route::post('/admin/editor/upload', \App\Http\Controllers\Admin\EditorUploadCont
     ->middleware('auth')
     ->name('admin.editor.upload');
 
+// SEO: карта сайта и товарные фиды. Должны стоять до catch-all-маршрута страниц,
+// иначе адрес перехватил бы PageController.
+Route::get('/sitemap.xml', \App\Http\Controllers\SitemapController::class)->name('sitemap');
+Route::get('/feeds/yandex-market.yml', [\App\Http\Controllers\FeedController::class, 'yandexMarket'])->name('feeds.yandex-market');
+Route::get('/feeds/google-merchant.xml', [\App\Http\Controllers\FeedController::class, 'googleMerchant'])->name('feeds.google-merchant');
+
 Route::get('/{slug}', [PageController::class, 'show'])->name('page.show');

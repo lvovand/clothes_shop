@@ -16,7 +16,7 @@
     <div class="container">
         <div class="breadcrumbs">
             <div class="content-width">
-                <nav class="breadcrumbs__wrapper"><a href="{{ url('/') }}">Главная</a>&nbsp;<span class="arrow-bread">/</span>&nbsp;{{ $title }}</nav>            </div>
+                <nav class="breadcrumbs__wrapper"><a href="{{ url('/') }}">Главная</a>&nbsp;<span class="arrow-bread">/</span>&nbsp;{{ $category?->name ?? 'ALL' }}</nav>            </div>
         </div>
     </div>
 </div>
@@ -51,6 +51,16 @@
 </div>
 
 @include('partials.pagination', ['paginator' => $products])
+
+@if($category?->seo_text)
+    <div class="catalog-seo-text">
+        <div class="container">
+            <div class="content-width">
+                {!! nl2br(e($category->seo_text)) !!}
+            </div>
+        </div>
+    </div>
+@endif
 
 @endsection
 

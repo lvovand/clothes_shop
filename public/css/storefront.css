@@ -572,3 +572,23 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
         font-size: 14px;
     }
 }
+
+/* Текст под каталогом на странице категории (поле «Текст под каталогом» в админке).
+   На эталоне такого блока нет — метрики берём от контейнера каталога: та же
+   ширина .content-width, спокойный серый цвет, чтобы блок читался как справка,
+   а не спорил с товарами. */
+.catalog-seo-text {
+    margin: 40px 0 8px;
+}
+
+.catalog-seo-text .content-width {
+    color: #5a5a5a;
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+    .catalog-seo-text {
+        margin-top: 28px;
+    }
+}

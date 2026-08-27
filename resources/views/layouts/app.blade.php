@@ -28,7 +28,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     {{-- Иконки сайта: логотип-стикер бренда. Если в настройках загружен свой
@@ -45,27 +45,37 @@
         <link rel="shortcut icon" href="{{ $asset('favicon.ico') }}">
     @endif
 
-    <title>{{ $title ?? $setting('brand_name', 'ROPA WORLD') }}</title>
-    @if(!empty($metaDescription))
-        <meta name="description" content="{{ $metaDescription }}">
+    {{-- Итоговые title / description / canonical считает App\View\Composers\SeoComposer:
+         берёт то, что передал контроллер, и дополняет значениями из «Настройки → Сайт». --}}
+    @php
+        $seoTitle = $seoTitle ?? $setting('brand_name', 'ROPA WORLD');
+        $seoDescription = $seoDescription ?? $setting('seo_default_description', '');
+        $seoCanonical = $seoCanonical ?? url()->current();
+    @endphp
+    <title>{{ $seoTitle }}</title>
+    @if(!empty($seoDescription))
+        <meta name="description" content="{{ $seoDescription }}">
     @endif
+    <link rel="canonical" href="{{ $seoCanonical }}">
+    <meta name="robots" content="{{ $metaRobots ?? 'index, follow' }}">
 
     {{-- Превью для мессенджеров и соцсетей. По умолчанию — логотип бренда на
          кремовом фоне (прозрачный PNG там показался бы на чёрном), а страница
          может подставить своё изображение: например, страница товара — его фото. --}}
     @php
-        $ogTitle = $ogTitle ?? $title ?? $setting('brand_name', 'ROPA WORLD');
-        $ogDescription = $ogDescription ?? ($metaDescription ?? $setting('site_description', ''));
-        $ogImageUrl = $ogImage ?? ($setting('og_image') ? asset('storage/'.$setting('og_image')) : $asset('img/brand/og-image.jpg'));
+        $ogType = $ogType ?? 'website';
+        $ogTitle = ($ogTitle ?? null) ?: $seoTitle;
+        $ogDescription = ($ogDescription ?? null) ?: $seoDescription;
+        $ogImageUrl = ($ogImage ?? null) ?: ($setting('og_image') ? asset('storage/'.$setting('og_image')) : $asset('img/brand/og-image.jpg'));
     @endphp
-    <meta property="og:type" content="{{ $ogType ?? 'website' }}">
+    <meta property="og:type" content="{{ $ogType }}">
     <meta property="og:site_name" content="{{ $setting('brand_name', 'ROPA WORLD') }}">
     <meta property="og:locale" content="ru_RU">
     <meta property="og:title" content="{{ $ogTitle }}">
     @if($ogDescription)
         <meta property="og:description" content="{{ $ogDescription }}">
     @endif
-    <meta property="og:url" content="{{ url()->current() }}">
+    <meta property="og:url" content="{{ $seoCanonical ?? url()->current() }}">
     <meta property="og:image" content="{{ $ogImageUrl }}">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ $ogTitle }}">
@@ -133,6 +143,8 @@
          Выводится как есть — это его смысл, поэтому и добавлять его может только
          тот, у кого есть доступ в админку. --}}
     {!! \App\Models\CodeSnippet::render('head') !!}
+
+    @include('partials.json-ld')
 </head>
 
 <body>

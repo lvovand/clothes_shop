@@ -59,6 +59,25 @@ class CategoryResource extends Resource
                 Forms\Components\Toggle::make('is_virtual')
                     ->label('Показывать все товары каталога')
                     ->helperText('Так работает раздел ALL: товары к нему не привязываются, он всегда показывает весь каталог целиком. Для обычной категории оставьте выключенным.'),
+                Forms\Components\Section::make('SEO')
+                    ->columns(2)
+                    ->collapsible()
+                    ->collapsed()
+                    ->schema([
+                        Forms\Components\TextInput::make('meta_title')
+                            ->label('Meta title')
+                            ->maxLength(160)
+                            ->helperText('Заголовок вкладки и строка в поиске. Пусто — берётся название категории. Бренд добавляется автоматически.'),
+                        Forms\Components\TextInput::make('meta_description')
+                            ->label('Meta description')
+                            ->maxLength(320)
+                            ->helperText('Описание под ссылкой в выдаче. Пусто — берётся общее описание из «Настройки сайта».'),
+                        Forms\Components\Textarea::make('seo_text')
+                            ->label('Текст под каталогом')
+                            ->rows(5)
+                            ->columnSpanFull()
+                            ->helperText('Необязательно. Показывается внизу страницы категории под товарами — место для описания раздела под поисковые запросы.'),
+                    ]),
             ]);
     }
 

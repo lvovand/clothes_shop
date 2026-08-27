@@ -1,2 +1,17 @@
 User-agent: *
-Disallow:
+Disallow: /checkout
+Disallow: /cart
+Disallow: /wishlist
+Disallow: /search
+Disallow: /tg
+Disallow: /admin
+Disallow: /*?sort=
+Disallow: /*?colors=
+Disallow: /*?sizes=
+Disallow: /*?price_min=
+Disallow: /*?price_max=
+Disallow: /*?stock=
+Disallow: /*?in_stock=
+
+Host: https://ropaworld.ru
+Sitemap: https://ropaworld.ru/sitemap.xml

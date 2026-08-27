@@ -30,14 +30,21 @@ class SiteSettings extends Page implements HasForms
         'home_new_title', 'home_new_cta', 'home_shop_title', 'home_shop_cta', 'home_shop_tiles_count',
         'home_marquee_text', 'home_marquee_image',
         'catalog_default_sort',
+        'seo_home_title', 'seo_home_description', 'seo_catalog_description', 'seo_default_description', 'og_image',
+        'feed_shop_name', 'feed_company', 'feed_yandex_enabled', 'feed_google_enabled',
     ];
+
+    /** Тумблеры, которые по умолчанию включены, пока их явно не выключили. */
+    private const BOOL_ON_BY_DEFAULT = ['feed_yandex_enabled', 'feed_google_enabled'];
 
     public ?array $data = [];
 
     public function mount(): void
     {
         $this->form->fill(
-            collect(self::KEYS)->mapWithKeys(fn ($key) => [$key => SiteSetting::get($key)])->all()
+            collect(self::KEYS)->mapWithKeys(fn ($key) => [
+                $key => SiteSetting::get($key, in_array($key, self::BOOL_ON_BY_DEFAULT, true) ? '1' : null),
+            ])->all()
         );
     }
 
@@ -68,6 +75,54 @@ class SiteSettings extends Page implements HasForms
                             ->default('manual')
                             ->selectablePlaceholder(false)
                             ->helperText('Применяется, пока покупатель сам не выбрал сортировку в каталоге.'),
+                    ]),
+                Forms\Components\Section::make('SEO / Поиск')
+                    ->description('Заголовки и описания для страниц, у которых нет своего поля: главная, каталог, поиск. У товаров и статических страниц эти поля — в самой карточке товара/страницы, у категорий — в разделе «Каталог → Категории».')
+                    ->columns(2)
+                    ->schema([
+                        Forms\Components\TextInput::make('seo_home_title')
+                            ->label('Заголовок главной')
+                            ->maxLength(160)
+                            ->helperText('<title> главной страницы. Пусто — только название бренда.'),
+                        Forms\Components\Textarea::make('seo_home_description')
+                            ->label('Описание главной')
+                            ->rows(2)
+                            ->maxLength(320)
+                            ->helperText('Текст под ссылкой на главную в выдаче.'),
+                        Forms\Components\Textarea::make('seo_catalog_description')
+                            ->label('Описание каталога')
+                            ->rows(2)
+                            ->maxLength(320)
+                            ->helperText('Для страницы «весь каталог» и категорий без своего описания.'),
+                        Forms\Components\Textarea::make('seo_default_description')
+                            ->label('Описание по умолчанию')
+                            ->rows(2)
+                            ->maxLength(320)
+                            ->helperText('Подставляется на любой странице, где нет более точного описания. Также идёт в превью для соцсетей.'),
+                        Forms\Components\FileUpload::make('og_image')
+                            ->label('Картинка-превью для соцсетей (OG image)')
+                            ->image()
+                            ->imageEditor()
+                            ->directory('site')
+                            ->columnSpanFull()
+                            ->helperText('Показывается при отправке ссылки на сайт в мессенджер или соцсеть. Рекомендуемый размер 1200×630. Пусто — логотип бренда.'),
+                    ]),
+                Forms\Components\Section::make('Товарные фиды (Яндекс Маркет, Google)')
+                    ->description('Выгрузка каталога для товарных площадок. Адреса фидов: /feeds/yandex-market.yml и /feeds/google-merchant.xml — их указывают в кабинете площадки.')
+                    ->columns(2)
+                    ->schema([
+                        Forms\Components\TextInput::make('feed_shop_name')
+                            ->label('Название магазина в фиде')
+                            ->helperText('Короткое имя магазина. Пусто — название бренда.'),
+                        Forms\Components\TextInput::make('feed_company')
+                            ->label('Юридическое название (компания)')
+                            ->helperText('Название организации-владельца. Пусто — название бренда.'),
+                        Forms\Components\Toggle::make('feed_yandex_enabled')
+                            ->label('Отдавать фид Яндекс Маркета (YML)')
+                            ->default(true),
+                        Forms\Components\Toggle::make('feed_google_enabled')
+                            ->label('Отдавать фид Google Merchant (XML)')
+                            ->default(true),
                     ]),
                 Forms\Components\Section::make('Контакты (футер)')
                     ->columns(2)
@@ -122,7 +177,8 @@ class SiteSettings extends Page implements HasForms
         $state = $this->form->getState();
 
         foreach (self::KEYS as $key) {
-            SiteSetting::set($key, $state[$key] ?? null);
+            $value = $state[$key] ?? null;
+            SiteSetting::set($key, is_bool($value) ? ($value ? '1' : '0') : $value);
         }
 
         Notification::make()->title('Настройки сохранены')->success()->send();

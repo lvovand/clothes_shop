@@ -14,7 +14,10 @@ class Category extends Model
         return $this->is_virtual ? route('catalog.all') : route('catalog.category', $this);
     }
 
-    protected $fillable = ['is_virtual', 'slug', 'name', 'image', 'thumb_path', 'sort_order', 'is_active'];
+    protected $fillable = [
+        'is_virtual', 'slug', 'name', 'image', 'thumb_path', 'sort_order', 'is_active',
+        'meta_title', 'meta_description', 'seo_text',
+    ];
 
     /** Превью раздела: своё, если загружено, иначе основная картинка. */
     public function previewPath(): ?string

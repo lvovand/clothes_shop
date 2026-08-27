@@ -64,6 +64,12 @@ class AppServiceProvider extends ServiceProvider
         // Сжатие фотографий сразу после загрузки из админки.
         UploadedImageWatcher::register();
 
+        // Композеры витрины регистрируем ДО guard-а ниже: это отложенная привязка
+        // (замыкание вызывается только при рендере вьюхи, когда таблицы уже на месте),
+        // а ранний return из-за отсутствующей site_settings во время первой миграции
+        // не должен её отменять.
+        $this->registerViewComposers();
+
         // Admin-editable mail settings (Настройки → Почта) override the .env defaults,
         // same DB-first-then-env-fallback pattern as CDEK/T-Bank above. Guarded against
         // running before the first migration, since boot() fires for every artisan command.
@@ -88,6 +94,13 @@ class AppServiceProvider extends ServiceProvider
             'mail.from.address' => SiteSetting::get('mail_from_address', config('mail.from.address')),
             'mail.from.name' => SiteSetting::get('mail_from_name', config('mail.from.name')),
         ]);
+    }
+
+    private function registerViewComposers(): void
+    {
+        // Финальные title / description / canonical для всех страниц витрины —
+        // в одном месте, с дефолтами из «Настройки → Сайт».
+        View::composer('layouts.app', \App\View\Composers\SeoComposer::class);
 
         // Every product card needs to know whether it's already wishlisted (to render the
         // heart filled), but doing that query per-card would be N+1 — memoize it once per request.

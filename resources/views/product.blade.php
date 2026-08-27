@@ -96,7 +96,7 @@
                             {{-- Слайдер галереи показывается в 651px (.gallery-top), на мобильном во всю ширину.
                                  По ссылке fancybox открывает оригинал — там нужен полный размер. --}}
                             <x-img :path="$image->path" sizes="(min-width: 993px) 651px, 100vw" :width="960"
-                                   alt="{{ $product->name }}" :loading="$loop->first ? false : 'lazy'" decoding="async" />
+                                   alt="{{ $image->alt ?: $product->name }}" :loading="$loop->first ? false : 'lazy'" decoding="async" />
                         </a>
                     </div>
             @endforeach
