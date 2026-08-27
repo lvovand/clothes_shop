@@ -2,10 +2,15 @@
 
 namespace App\Providers;
 
+use App\Models\Category;
 use App\Models\Order;
+use App\Models\Page;
+use App\Models\Product;
 use App\Models\SiteSetting;
+use App\Models\Variant;
 use App\Models\WishlistItem;
 use App\Observers\OrderObserver;
+use Illuminate\Support\Facades\Cache;
 use App\Services\Cdek\CdekClient;
 use App\Services\TBank\TBankClient;
 use App\Services\YandexDelivery\YandexDeliveryClient;
@@ -69,6 +74,19 @@ class AppServiceProvider extends ServiceProvider
         // а ранний return из-за отсутствующей site_settings во время первой миграции
         // не должен её отменять.
         $this->registerViewComposers();
+
+        // Карта сайта и товарные фиды кэшируются на час. Чтобы новый товар, раздел
+        // или правка цены попадали в них сразу, а не через час, сбрасываем кэш при
+        // любом изменении каталога. Событие срабатывает уже после миграций.
+        $forget = function () {
+            Cache::forget('sitemap:xml');
+            Cache::forget('feed:yandex-market');
+            Cache::forget('feed:google-merchant');
+        };
+        foreach ([Product::class, Variant::class, Category::class, Page::class] as $model) {
+            $model::saved($forget);
+            $model::deleted($forget);
+        }
 
         // Admin-editable mail settings (Настройки → Почта) override the .env defaults,
         // same DB-first-then-env-fallback pattern as CDEK/T-Bank above. Guarded against
