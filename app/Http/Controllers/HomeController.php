@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\HomepageSlide;
 use App\Models\Product;
 use App\Models\SiteSetting;
+use App\Support\ImageVariants;
 
 class HomeController extends Controller
 {
@@ -35,7 +36,7 @@ class HomeController extends Controller
             ->map(fn (Category $category) => [
                 'name' => $category->name,
                 'url' => $category->url(),
-                'image' => $category->image ? asset('storage/'.$category->image) : '',
+                'image' => $category->image ? ImageVariants::url($category->image, 640) : '',
             ])
             ->all();
 
