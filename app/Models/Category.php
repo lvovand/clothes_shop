@@ -16,6 +16,7 @@ class Category extends Model
 
     protected $fillable = [
         'is_virtual', 'slug', 'name', 'image', 'thumb_path', 'sort_order', 'is_active',
+        'is_private', 'access_code',
         'meta_title', 'meta_description', 'seo_text',
     ];
 
@@ -28,7 +29,25 @@ class Category extends Model
     protected $casts = [
         'is_active' => 'boolean',
         'is_virtual' => 'boolean',
+        'is_private' => 'boolean',
     ];
+
+    /**
+     * Только открытые разделы: закрытых нет ни в меню и плитках, ни в карте сайта
+     * и фидах — попасть в них можно лишь по прямой ссылке с промокодом.
+     */
+    public function scopeNotPrivate($query)
+    {
+        return $query->where('is_private', false);
+    }
+
+    /** Совпадает ли введённый покупателем промокод с кодом раздела. */
+    public function accessCodeMatches(?string $code): bool
+    {
+        $expected = trim((string) $this->access_code);
+
+        return $expected !== '' && mb_strtolower(trim((string) $code)) === mb_strtolower($expected);
+    }
 
     public function getRouteKeyName(): string
     {

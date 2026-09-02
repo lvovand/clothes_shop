@@ -441,6 +441,18 @@ class CheckoutController extends Controller
             return redirect()->route('checkout.index')->with('error', 'Корзина пуста');
         }
 
+        // Страховка от старой сессии: товар мог попасть в корзину до того, как его
+        // перенесли в закрытую категорию — такие позиции не продаются.
+        $viewOnly = Variant::with('product')->whereIn('id', array_keys($cart))->get()
+            ->filter(fn (Variant $variant) => ! $variant->product?->isPurchasable());
+
+        if ($viewOnly->isNotEmpty()) {
+            session(['cart' => array_diff_key($cart, $viewOnly->keyBy('id')->all())]);
+
+            return redirect()->route('checkout.index')
+                ->with('error', 'Из заказа убраны товары, доступные только для просмотра');
+        }
+
         // Поля разбиты так же, как в форме эталона (имя/фамилия отдельно, адрес
         // по частям улица/дом/квартира) — в заказе они складываются в те же две
         // строки, что и раньше, схема заказа от этого не меняется.

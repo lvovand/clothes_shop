@@ -59,6 +59,27 @@ class CategoryResource extends Resource
                 Forms\Components\Toggle::make('is_virtual')
                     ->label('Показывать все товары каталога')
                     ->helperText('Так работает раздел ALL: товары к нему не привязываются, он всегда показывает весь каталог целиком. Для обычной категории оставьте выключенным.'),
+                Forms\Components\Section::make('Тип категории')
+                    ->description('Закрытая категория не показывается на сайте: её нет в меню, плитках, поиске и карте сайта. Покупатель попадает в неё только по прямой ссылке и после ввода промокода. Товары такой категории можно смотреть, но нельзя положить в корзину.')
+                    ->schema([
+                        Forms\Components\Toggle::make('is_private')
+                            ->label('Закрытая')
+                            ->live()
+                            ->helperText('Выключено — обычная категория, видна всем.'),
+                        Forms\Components\TextInput::make('access_code')
+                            ->label('Промокод для доступа')
+                            ->maxLength(64)
+                            ->required(fn (Forms\Get $get) => (bool) $get('is_private'))
+                            ->visible(fn (Forms\Get $get) => (bool) $get('is_private'))
+                            ->helperText('Его вводят на странице категории. Регистр не важен.'),
+                        Forms\Components\Placeholder::make('private_url')
+                            ->label('Ссылка на категорию')
+                            ->visible(fn (Forms\Get $get) => (bool) $get('is_private'))
+                            ->content(fn (Forms\Get $get) => $get('slug')
+                                ? url('/catalog/'.$get('slug'))
+                                : 'Ссылка появится после сохранения категории.')
+                            ->helperText('Отправьте её покупателю вместе с промокодом — сам он эту категорию на сайте не найдёт.'),
+                    ]),
                 Forms\Components\Section::make('SEO')
                     ->columns(2)
                     ->collapsible()
@@ -100,6 +121,7 @@ class CategoryResource extends Resource
                         ? Product::published()->count().' (весь каталог)'
                         : $record->products_count),
                 Tables\Columns\IconColumn::make('is_active')->label('Активна')->boolean(),
+                Tables\Columns\IconColumn::make('is_private')->label('Закрытая')->boolean(),
             ])
             ->filters([])
             ->actions([

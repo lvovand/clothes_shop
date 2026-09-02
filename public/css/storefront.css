@@ -592,3 +592,69 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
         margin-top: 28px;
     }
 }
+
+/* Закрытый раздел: страница с промокодом и пометка «только для просмотра» на
+   карточке товара. На эталоне таких экранов нет — метрики берём от каталога:
+   ширина .content-width, шрифт и кнопка как у форм оформления заказа. */
+.category-lock {
+    max-width: 520px;
+    margin: 80px auto 120px;
+    text-align: center;
+}
+
+.category-lock__title {
+    font-size: 28px;
+    margin-bottom: 16px;
+}
+
+.category-lock__text {
+    color: #5a5a5a;
+    font-size: 16px;
+    line-height: 1.6;
+    margin-bottom: 24px;
+}
+
+.category-lock__form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.category-lock__input {
+    box-sizing: border-box;
+    width: 100%;
+    height: 54px;
+    padding: 0 16px;
+    border: 1px solid #0C0C0C;
+    font-size: 16px;
+    text-align: center;
+}
+
+/* Высота и цвет достаются от .btn-black темы — здесь только курсор. */
+.category-lock__btn {
+    cursor: pointer;
+}
+
+.category-lock__error {
+    margin-top: 16px;
+    color: #c0392b;
+    font-size: 15px;
+}
+
+/* Товар закрытого раздела: вместо кнопки покупки — спокойная подпись. */
+.view-only-note {
+    margin: 16px 0;
+    font-size: 16px;
+    color: #5a5a5a;
+}
+
+@media (max-width: 768px) {
+    .category-lock {
+        margin: 48px auto 80px;
+        padding: 0 16px;
+    }
+
+    .category-lock__title {
+        font-size: 22px;
+    }
+}

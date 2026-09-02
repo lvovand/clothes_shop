@@ -6,6 +6,7 @@ use App\Models\Attribute;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Variant;
+use App\Support\PrivateCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
@@ -21,13 +22,39 @@ class CatalogController extends Controller
         // Выключенный в админке раздел недоступен и по прямой ссылке.
         abort_unless($category->is_active, 404);
 
+        // Закрытый раздел: страница отдаётся, но вместо товаров — форма промокода,
+        // пока покупатель не введёт код (см. unlock ниже).
+        if (! PrivateCatalog::allows($category)) {
+            return view('category-locked', [
+                'category' => $category,
+                'title' => $category->name,
+                'metaRobots' => 'noindex, nofollow',
+            ]);
+        }
+
         // ALL — виртуальная категория: товары к ней не привязаны, показываем весь каталог.
         return $this->render($request, $category->is_virtual ? null : $category);
     }
 
+    /** Проверка промокода закрытого раздела. Верный код открывает его на сессию. */
+    public function unlock(Request $request, Category $category)
+    {
+        abort_unless($category->is_active && $category->is_private, 404);
+
+        if (! $category->accessCodeMatches($request->input('access_code'))) {
+            return back()->with('error', 'Промокод не подошёл');
+        }
+
+        PrivateCatalog::unlock($category);
+
+        return redirect()->route('catalog.category', $category);
+    }
+
     private function render(Request $request, ?Category $category)
     {
-        $query = Product::published();
+        // Внутри закрытого раздела показываем его товары, во всех остальных
+        // списках витрины товары закрытых разделов не участвуют.
+        $query = $category?->is_private ? Product::published() : Product::listedPublicly();
 
         if ($category) {
             $query->whereHas('categories', fn ($q) => $q->where('categories.id', $category->id));
@@ -50,7 +77,7 @@ class CatalogController extends Controller
         // же применения фильтра.
         $priceScope = Variant::query()
             ->whereHas('product', function ($q) use ($category) {
-                $q->published();
+                $category?->is_private ? $q->published() : $q->listedPublicly();
                 if ($category) {
                     $q->whereHas('categories', fn ($c) => $c->where('categories.id', $category->id));
                 }
@@ -61,6 +88,7 @@ class CatalogController extends Controller
             'title' => $category?->meta_title ?: ($category?->name ?? 'ALL'),
             'metaDescription' => $category?->meta_description ?: null,
             'category' => $category,
+            'metaRobots' => $category?->is_private ? 'noindex, nofollow' : null,
             'colorValues' => Attribute::where('code', 'color')->first()?->values()->orderBy('sort_order')->get() ?? collect(),
             'sizeValues' => Attribute::where('code', 'size')->first()?->values()->orderBy('sort_order')->get() ?? collect(),
             'priceMin' => (int) floor((float) (clone $priceScope)->min(\DB::raw('COALESCE(sale_price, regular_price)'))),

@@ -12,7 +12,7 @@ class SearchController extends Controller
     {
         $query = trim((string) $request->input('q', ''));
 
-        $products = Product::published()
+        $products = Product::listedPublicly()
             ->when($query !== '', fn ($q) => $q->where('name', 'like', '%'.$this->escapeLike($query).'%'), fn ($q) => $q->where('id', 0))
             ->with(['images', 'variants.attributeValues'])
             ->orderBy('sort_order')
@@ -37,7 +37,7 @@ class SearchController extends Controller
             return response()->json(['ok' => true, 'total' => 0, 'products' => []]);
         }
 
-        $matches = Product::published()
+        $matches = Product::listedPublicly()
             ->where('name', 'like', '%'.$this->escapeLike($query).'%')
             ->with(['images', 'variants'])
             ->orderBy('sort_order')

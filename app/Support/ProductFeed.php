@@ -34,6 +34,7 @@ class ProductFeed
     {
         return Category::query()
             ->where('is_virtual', false)
+            ->notPrivate()
             ->orderBy('id')
             ->get(['id', 'name'])
             ->mapWithKeys(fn (Category $c) => [$c->id => $c->name]);
@@ -42,7 +43,7 @@ class ProductFeed
     /** @return Collection<int, array> плоский список офферов по вариантам */
     public function offers(): Collection
     {
-        return Product::published()
+        return Product::listedPublicly()
             ->with([
                 'images',
                 'category',

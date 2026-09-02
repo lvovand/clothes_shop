@@ -33,6 +33,7 @@ class SitemapController extends Controller
         $categories = Category::query()
             ->where('is_active', true)
             ->where('is_virtual', false)
+            ->notPrivate()
             ->get()
             ->map(fn (Category $category) => [
                 'loc' => route('catalog.category', $category),
@@ -41,7 +42,7 @@ class SitemapController extends Controller
                 'changefreq' => 'weekly',
             ]);
 
-        $products = Product::published()
+        $products = Product::listedPublicly()
             ->orderBy('id')
             ->get(['slug', 'updated_at'])
             ->map(fn (Product $product) => [

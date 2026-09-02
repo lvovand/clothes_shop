@@ -13,7 +13,7 @@ class HomeController extends Controller
     {
         $desktopSlides = HomepageSlide::desktop()->where('is_active', true)->orderBy('sort_order')->get();
         $mobileSlides = HomepageSlide::mobile()->where('is_active', true)->orderBy('sort_order')->get();
-        $newProducts = Product::published()->where('is_new', true)
+        $newProducts = Product::listedPublicly()->where('is_new', true)
             ->with(['images', 'variants'])
             ->orderBy('sort_order')
             ->limit(8)
@@ -25,7 +25,9 @@ class HomeController extends Controller
         // Раньше первая ячейка («весь каталог») с картинкой была захардкожена здесь —
         // из-за этого после появления виртуальной категории ALL плитка ALL выводилась
         // дважды, а её картинку нельзя было поменять из админки.
+        // Закрытые разделы в плитку не попадают: ссылок на них на сайте нет.
         $shopTiles = Category::where('is_active', true)
+            ->notPrivate()
             ->orderBy('sort_order')
             ->orderBy('id')
             ->limit((int) SiteSetting::get('home_shop_tiles_count', 4))

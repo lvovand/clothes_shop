@@ -18,6 +18,8 @@ Route::get('/', HomeController::class.'@index')->name('home');
 
 Route::get('/catalog', [CatalogController::class, 'all'])->name('catalog.all');
 Route::get('/catalog/{category}', [CatalogController::class, 'category'])->name('catalog.category');
+// Промокод закрытого раздела: верный код открывает его до конца сессии.
+Route::post('/catalog/{category}/access', [CatalogController::class, 'unlock'])->name('catalog.unlock');
 
 Route::get('/product/{product}', [ProductController::class, 'show'])->name('product.show');
 

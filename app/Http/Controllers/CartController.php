@@ -15,6 +15,12 @@ class CartController extends Controller
         ]);
 
         $variant = Variant::findOrFail($validated['variant_id']);
+
+        // Товары закрытых категорий продаже не подлежат — их можно только смотреть.
+        if (! $variant->product?->isPurchasable()) {
+            return $this->respond($request, false, 'Этот товар доступен только для просмотра');
+        }
+
         if (! $variant->inStock()) {
             return $this->respond($request, false, 'Товара нет в наличии');
         }

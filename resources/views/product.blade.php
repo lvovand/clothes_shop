@@ -60,6 +60,10 @@
             'sale' => $v->isOnSale() ? (float) $v->sale_price : null,
         ])->render()),
     ])->values();
+
+    // Товар из закрытой категории — только для просмотра: кнопки покупки, счётчик
+    // количества и бейдж рассрочки на такой карточке не показываются.
+    $canBuy = $purchasable ?? true;
 @endphp
 
 @section('content')
@@ -130,17 +134,21 @@
             <p class="product-card-description__price">
                 @if($selectedVariant)@include('partials.price-single', ['regular' => (float) $selectedVariant->regular_price, 'sale' => $selectedVariant->isOnSale() ? (float) $selectedVariant->sale_price : null])@endif            </p>
                             <div class="add-to-cart-block">
-                    <p class="btn add-cart-link btn-mobile-product">
-                        В корзину
-                    </p>
-                    {{-- На мобильных кнопка покупки живёт здесь (в форме она скрыта темой),
-                         поэтому бейдж Сплита нужен рядом именно с этой кнопкой. --}}
-                    @if($selectedVariant)
-                        @include('partials.yandex-pay-badge', [
-                            'amount' => $selectedVariant->currentPrice(),
-                            'type' => 'bnpl',
-                            'size' => 'm',
-                        ])
+                    @if($canBuy)
+                        <p class="btn add-cart-link btn-mobile-product">
+                            В корзину
+                        </p>
+                        {{-- На мобильных кнопка покупки живёт здесь (в форме она скрыта темой),
+                             поэтому бейдж Сплита нужен рядом именно с этой кнопкой. --}}
+                        @if($selectedVariant)
+                            @include('partials.yandex-pay-badge', [
+                                'amount' => $selectedVariant->currentPrice(),
+                                'type' => 'bnpl',
+                                'size' => 'm',
+                            ])
+                        @endif
+                    @else
+                        <p class="view-only-note">Товар доступен только для просмотра</p>
                     @endif
                 </div>
 
@@ -174,23 +182,27 @@
 							</tbody>
 		</table>
 
-        <button type="submit" class="btn add-cart-link add-to-cart-single button alt">В корзину</button>
+        @if($canBuy)
+            <button type="submit" class="btn add-cart-link add-to-cart-single button alt">В корзину</button>
 
-        {{-- Сумма берётся у выбранного варианта: у товара размеры стоят одинаково,
-             поэтому бейдж не пересчитывается при смене размера. --}}
-        @if($selectedVariant)
-            @include('partials.yandex-pay-badge', [
-                'amount' => $selectedVariant->currentPrice(),
-                'type' => 'bnpl',
-                'size' => 'm',
-            ])
+            {{-- Сумма берётся у выбранного варианта: у товара размеры стоят одинаково,
+                 поэтому бейдж не пересчитывается при смене размера. --}}
+            @if($selectedVariant)
+                @include('partials.yandex-pay-badge', [
+                    'amount' => $selectedVariant->currentPrice(),
+                    'type' => 'bnpl',
+                    'size' => 'm',
+                ])
+            @endif
+        @else
+            <p class="view-only-note">Товар доступен только для просмотра</p>
         @endif
 
 
 		<div class="single_variation_wrap">
 			<div class="woocommerce-variation single_variation"></div><div class="woocommerce-variation-add-to-cart variations_button">
 
-		<div class="quantity">
+		<div class="quantity" @unless($canBuy) hidden @endunless>
 		<label class="screen-reader-text" for="smntcswcb">Quantity</label>
 
 									<input class="minus button wp-element-button" type="button" value="">

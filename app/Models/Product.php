@@ -56,6 +56,35 @@ class Product extends Model
         return $query->where('status', 'published');
     }
 
+    /**
+     * Товары, которым место в общих списках витрины: каталог, поиск, новинки,
+     * карта сайта, товарные фиды. Привязка к закрытой категории убирает товар
+     * отовсюду — он виден только внутри самой категории, после промокода.
+     */
+    public function scopeListedPublicly($query)
+    {
+        return $query->published()
+            ->whereDoesntHave('categories', fn ($q) => $q->where('is_private', true));
+    }
+
+    /** Лежит ли товар хотя бы в одной закрытой категории. */
+    public function isPrivate(): bool
+    {
+        return $this->categories()->where('is_private', true)->exists();
+    }
+
+    /** Закрытые категории, в которых лежит товар. */
+    public function privateCategories()
+    {
+        return $this->categories()->where('is_private', true)->get();
+    }
+
+    /** Товар из закрытой категории — только для просмотра, купить его нельзя. */
+    public function isPurchasable(): bool
+    {
+        return ! $this->isPrivate();
+    }
+
     public function minPrice(): ?float
     {
         return $this->variants->map(fn (Variant $v) => $v->currentPrice())->min();
