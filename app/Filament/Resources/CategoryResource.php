@@ -38,7 +38,38 @@ class CategoryResource extends Resource
                 Forms\Components\TextInput::make('slug')
                     ->label('URL (slug)')
                     ->required()
+                    ->live()
                     ->unique(ignoreRecord: true),
+                Forms\Components\Placeholder::make('category_url')
+                    ->label('Ссылка на категорию')
+                    ->content(function (Forms\Get $get) {
+                        if (! $get('slug')) {
+                            return 'Ссылка появится после заполнения URL (slug).';
+                        }
+
+                        $url = url('/catalog/'.$get('slug'));
+                        $qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&data='.urlencode($url);
+                        $urlHtml = e($url);
+                        $urlJs = addslashes($url);
+
+                        return new \Illuminate\Support\HtmlString(<<<HTML
+                            <div x-data="{ copied: false }" class="flex items-start gap-4">
+                                <div class="flex flex-1 flex-wrap items-center gap-2">
+                                    <code class="text-sm break-all">{$urlHtml}</code>
+                                    <button
+                                        type="button"
+                                        x-on:click="navigator.clipboard.writeText('{$urlJs}'); copied = true; setTimeout(() => copied = false, 1500)"
+                                        class="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs font-medium hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
+                                    >
+                                        <span x-show="!copied">Копировать</span>
+                                        <span x-show="copied" x-cloak>Скопировано</span>
+                                    </button>
+                                </div>
+                                <img src="{$qrSrc}" alt="QR-код на категорию" width="120" height="120" class="rounded border border-gray-200 dark:border-gray-700" />
+                            </div>
+                        HTML);
+                    })
+                    ->helperText('QR-код и кнопка «Копировать» ведут на эту же ссылку — удобно отправить покупателю.'),
                 Forms\Components\FileUpload::make('image')
                     ->label('Изображение (плитка на главной)')
                     ->image()
@@ -71,14 +102,7 @@ class CategoryResource extends Resource
                             ->maxLength(64)
                             ->required(fn (Forms\Get $get) => (bool) $get('is_private'))
                             ->visible(fn (Forms\Get $get) => (bool) $get('is_private'))
-                            ->helperText('Его вводят на странице категории. Регистр не важен.'),
-                        Forms\Components\Placeholder::make('private_url')
-                            ->label('Ссылка на категорию')
-                            ->visible(fn (Forms\Get $get) => (bool) $get('is_private'))
-                            ->content(fn (Forms\Get $get) => $get('slug')
-                                ? url('/catalog/'.$get('slug'))
-                                : 'Ссылка появится после сохранения категории.')
-                            ->helperText('Отправьте её покупателю вместе с промокодом — сам он эту категорию на сайте не найдёт.'),
+                            ->helperText('Его вводят на странице категории. Регистр не важен. Отправьте покупателю вместе со ссылкой выше — сам он эту категорию на сайте не найдёт.'),
                     ]),
                 Forms\Components\Section::make('SEO')
                     ->columns(2)
