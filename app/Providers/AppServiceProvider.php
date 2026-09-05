@@ -17,6 +17,7 @@ use App\Services\YandexDelivery\YandexDeliveryClient;
 use App\Services\YandexPay\YandexPayClient;
 use App\Services\YandexPay\YandexPayWebhookVerifier;
 use App\Support\UploadedImageWatcher;
+use Filament\Forms\Components\FileUpload;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -68,6 +69,21 @@ class AppServiceProvider extends ServiceProvider
 
         // Сжатие фотографий сразу после загрузки из админки.
         UploadedImageWatcher::register();
+
+        // Уменьшение фотографии ПРЯМО В БРАУЗЕРЕ, до отправки на сервер.
+        // Снимок с фотоаппарата (4000×5300, 25 МБ) не пролезал в post_max_size
+        // и обрывался молча: PHP отбрасывает тело запроса целиком, Livewire
+        // получает пустой POST, и загрузка просто «зависает» без ошибки.
+        // FilePond вписывает картинку в 1600px (столько же оставляет и
+        // ImageOptimizer на сервере) — до сервера доезжают сотни килобайт.
+        // Upscale выключен: маленькие картинки и логотипы не растягиваем.
+        FileUpload::configureUsing(function (FileUpload $upload): void {
+            $upload->imageResizeMode('contain')
+                ->imageResizeTargetWidth('1600')
+                ->imageResizeTargetHeight('1600')
+                ->imageResizeUpscale(false)
+                ->maxSize(40 * 1024);
+        });
 
         // Композеры витрины регистрируем ДО guard-а ниже: это отложенная привязка
         // (замыкание вызывается только при рендере вьюхи, когда таблицы уже на месте),
