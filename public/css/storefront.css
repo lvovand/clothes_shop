@@ -733,9 +733,10 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
 }
 
 /* Текст под отсчётом набирается в редакторе админки — задаём только базовую
-   типографику, разметку внутри не трогаем. */
+   типографику, разметку внутри не трогаем. По центру, как заголовок и строка над
+   таймером: выравнивание отдельного абзаца при этом можно задать в самом редакторе. */
 .collection-teaser__text {
-    text-align: left;
+    text-align: center;
     font-size: 16px;
     line-height: 1.7;
 }
@@ -745,6 +746,12 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
     list-style: disc;
     padding-left: 20px;
     margin: 12px 0;
+    /* Пункты читаются с левого края, а сам список стоит по центру колонки:
+       при text-align: center маркеры и строки списка разъезжаются. */
+    display: table;
+    text-align: left;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .collection-teaser__text li {
