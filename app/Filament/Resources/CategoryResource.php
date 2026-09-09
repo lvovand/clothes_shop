@@ -104,6 +104,82 @@ class CategoryResource extends Resource
                             ->visible(fn (Forms\Get $get) => (bool) $get('is_private'))
                             ->helperText('Его вводят на странице категории. Регистр не важен. Отправьте покупателю вместе со ссылкой выше — сам он эту категорию на сайте не найдёт.'),
                     ]),
+                Forms\Components\Section::make('Запуск коллекции')
+                    ->description('Пока идёт отсчёт, по адресу ниже показывается страница ожидания с таймером. В назначенное время раздел открывается сам: товары становятся видны и доступны к покупке всем, промокод больше не нужен, страница ожидания начинает вести в раздел.')
+                    ->visible(fn (Forms\Get $get) => (bool) $get('is_private'))
+                    ->schema([
+                        Forms\Components\DateTimePicker::make('launch_at')
+                            ->label('Открыть раздел')
+                            ->seconds(false)
+                            ->native(false)
+                            ->displayFormat('d.m.Y H:i')
+                            // Время вводится и показывается по Москве, в базе лежит в UTC.
+                            ->timezone('Europe/Moscow')
+                            ->helperText('Время московское. Пусто — раздел остаётся закрытым, открыть его можно только промокодом.'),
+                        Forms\Components\TextInput::make('teaser_slug')
+                            ->label('Адрес страницы ожидания')
+                            ->prefix(url('/').'/')
+                            ->maxLength(120)
+                            ->live(onBlur: true)
+                            ->unique(ignoreRecord: true)
+                            ->rules(['regex:/^[a-z0-9\-]+$/'])
+                            ->validationMessages(['regex' => 'Только латинские буквы, цифры и дефис.'])
+                            ->helperText('Отдельный от раздела адрес — его можно давать в рассылке и сторис. Например: all-star-collection'),
+                        Forms\Components\Placeholder::make('teaser_url')
+                            ->label('Ссылка на страницу ожидания')
+                            ->visible(fn (Forms\Get $get) => (bool) $get('teaser_slug'))
+                            ->content(function (Forms\Get $get) {
+                                $url = url('/'.$get('teaser_slug'));
+                                $urlHtml = e($url);
+                                $urlJs = addslashes($url);
+
+                                return new \Illuminate\Support\HtmlString(<<<HTML
+                                    <div x-data="{ copied: false }" class="flex flex-wrap items-center gap-2">
+                                        <code class="text-sm break-all">{$urlHtml}</code>
+                                        <button
+                                            type="button"
+                                            x-on:click="navigator.clipboard.writeText('{$urlJs}'); copied = true; setTimeout(() => copied = false, 1500)"
+                                            class="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs font-medium hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
+                                        >
+                                            <span x-show="!copied">Копировать</span>
+                                            <span x-show="copied" x-cloak>Скопировано</span>
+                                        </button>
+                                    </div>
+                                HTML);
+                            }),
+                        Forms\Components\TextInput::make('teaser_title')
+                            ->label('Заголовок на странице ожидания')
+                            ->maxLength(120)
+                            ->helperText('Пусто — берётся название категории.'),
+                        Forms\Components\Textarea::make('teaser_lead')
+                            ->label('Текст над таймером')
+                            ->rows(3)
+                            ->helperText('Короткая строка о дате старта, например: коллекция будет доступна 16 сентября в 12:00.'),
+                        Forms\Components\FileUpload::make('teaser_image')
+                            ->label('Баннер над заголовком')
+                            ->image()
+                            ->imageEditor()
+                            ->directory('collections'),
+                        Forms\Components\FileUpload::make('teaser_image_mobile')
+                            ->label('Баннер для телефона (необязательно)')
+                            ->image()
+                            ->imageEditor()
+                            ->directory('collections')
+                            ->helperText('Пусто — на телефоне показывается тот же баннер.'),
+                        \App\Forms\Components\HtmlEditor::make('teaser_body')
+                            ->label('Текст под таймером')
+                            ->minHeight(400)
+                            ->helperText('Описание коллекции: абзацы, списки, ссылки и картинки — как на обычных страницах сайта.'),
+                        Forms\Components\Toggle::make('show_in_menu')
+                            ->label('Показывать пункт в левом меню')
+                            ->live()
+                            ->helperText('Пункт появится в главном меню сайта. До старта он ведёт на страницу ожидания, после — в сам раздел. Порядок пунктов правится в разделе «Меню в шапке».'),
+                        Forms\Components\TextInput::make('menu_label')
+                            ->label('Название пункта меню')
+                            ->maxLength(120)
+                            ->visible(fn (Forms\Get $get) => (bool) $get('show_in_menu'))
+                            ->helperText('Пусто — берётся название категории.'),
+                    ]),
                 Forms\Components\Section::make('SEO')
                     ->columns(2)
                     ->collapsible()

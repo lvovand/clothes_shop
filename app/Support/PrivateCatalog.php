@@ -27,10 +27,13 @@ class PrivateCatalog
         session([self::SESSION_KEY => array_values(array_unique($ids))]);
     }
 
-    /** Открыт ли раздел покупателю: обычный — всегда, закрытый — после промокода. */
+    /**
+     * Открыт ли раздел покупателю: обычный — всегда, закрытый — после промокода.
+     * Наступившее время запуска коллекции открывает раздел всем без кода.
+     */
     public static function allows(Category $category): bool
     {
-        return ! $category->is_private || in_array($category->id, self::unlockedIds(), true);
+        return ! $category->isLockedNow() || in_array($category->id, self::unlockedIds(), true);
     }
 
     /**

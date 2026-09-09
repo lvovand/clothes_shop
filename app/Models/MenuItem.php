@@ -82,7 +82,9 @@ class MenuItem extends Model
     public function resolvedUrl(): string
     {
         return match (true) {
-            $this->linkable instanceof Category => $this->linkable->url(),
+            // До запуска коллекции пункт ведёт на страницу ожидания с отсчётом,
+            // после — сразу в раздел; переключается само по времени.
+            $this->linkable instanceof Category => $this->linkable->publicUrl(),
             $this->linkable instanceof Page => route('page.show', $this->linkable->slug),
             default => $this->url ?? '#',
         };

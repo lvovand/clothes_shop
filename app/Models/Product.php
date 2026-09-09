@@ -64,19 +64,19 @@ class Product extends Model
     public function scopeListedPublicly($query)
     {
         return $query->published()
-            ->whereDoesntHave('categories', fn ($q) => $q->where('is_private', true));
+            ->whereDoesntHave('categories', fn ($q) => $q->lockedNow());
     }
 
     /** Лежит ли товар хотя бы в одной закрытой категории. */
     public function isPrivate(): bool
     {
-        return $this->categories()->where('is_private', true)->exists();
+        return $this->categories()->lockedNow()->exists();
     }
 
     /** Закрытые категории, в которых лежит товар. */
     public function privateCategories()
     {
-        return $this->categories()->where('is_private', true)->get();
+        return $this->categories()->lockedNow()->get();
     }
 
     /** Товар из закрытой категории — только для просмотра, купить его нельзя. */

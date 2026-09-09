@@ -2,12 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Category;
 use App\Models\Page;
 
 class PageController extends Controller
 {
     public function show(string $slug)
     {
+        // Адрес страницы ожидания коллекции задаётся в админке произвольно, поэтому
+        // своего маршрута у неё нет — она разбирается здесь, до поиска обычной страницы.
+        $teaser = Category::where('teaser_slug', $slug)->first();
+
+        if ($teaser) {
+            return app(CollectionTeaserController::class)->show($teaser);
+        }
+
         $page = Page::where('slug', $slug)->where('is_active', true)->firstOrFail();
 
         $view = match ($page->template) {

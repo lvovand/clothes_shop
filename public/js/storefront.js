@@ -106,3 +106,54 @@ jQuery(function ($) {
         });
     });
 })();
+
+/*
+    Обратный отсчёт до запуска коллекции (страница ожидания). Целевой момент
+    приходит в data-target строкой ISO 8601 со смещением, поэтому у посетителя в
+    любом часовом поясе отсчёт идёт до одного и того же времени по Москве.
+*/
+(function () {
+    var box = document.querySelector('[data-countdown]');
+    if (!box) {
+        return;
+    }
+
+    var target = Date.parse(box.getAttribute('data-target'));
+    if (isNaN(target)) {
+        return;
+    }
+
+    var out = {
+        days: box.querySelector('[data-countdown-days]'),
+        hours: box.querySelector('[data-countdown-hours]'),
+        minutes: box.querySelector('[data-countdown-minutes]'),
+        seconds: box.querySelector('[data-countdown-seconds]')
+    };
+
+    var pad = function (value) {
+        return value < 10 ? '0' + value : String(value);
+    };
+
+    var timer = null;
+
+    var tick = function () {
+        var left = Math.floor((target - Date.now()) / 1000);
+
+        if (left <= 0) {
+            clearInterval(timer);
+            // Открывать раздел решает сервер: на его часах время уже могло не
+            // наступить (часы посетителя спешат), поэтому просто идём по адресу
+            // раздела — до старта он сам вернёт форму промокода.
+            window.location.href = box.getAttribute('data-redirect') || window.location.href;
+            return;
+        }
+
+        out.days.textContent = pad(Math.floor(left / 86400));
+        out.hours.textContent = pad(Math.floor(left / 3600) % 24);
+        out.minutes.textContent = pad(Math.floor(left / 60) % 60);
+        out.seconds.textContent = pad(left % 60);
+    };
+
+    tick();
+    timer = setInterval(tick, 1000);
+})();

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Category;
 use App\Models\SiteSetting;
 use App\Support\ProductFeed;
 use Illuminate\Support\Facades\Cache;
@@ -42,7 +43,9 @@ class FeedController extends Controller
      */
     private function xml(string $key, \Closure $render)
     {
-        $body = Cache::remember($key, 3600, $render);
+        // TTL укорачивается до ближайшего запуска коллекции — открывшийся раздел
+        // должен попасть в фид сразу, а не через час.
+        $body = Cache::remember($key, Category::cacheTtl(3600), $render);
 
         return response($body, 200, ['Content-Type' => 'application/xml; charset=utf-8']);
     }

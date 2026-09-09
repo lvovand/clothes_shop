@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\SiteSetting;
 use App\Models\Variant;
 use App\Models\WishlistItem;
+use App\Observers\CategoryObserver;
 use App\Observers\OrderObserver;
 use Illuminate\Support\Facades\Cache;
 use App\Services\Cdek\CdekClient;
@@ -66,6 +67,9 @@ class AppServiceProvider extends ServiceProvider
     {
         // Возврат товара на склад при отмене/удалении заказа.
         Order::observe(OrderObserver::class);
+
+        // Пункт главного меню для раздела с запуском коллекции.
+        Category::observe(CategoryObserver::class);
 
         // Сжатие фотографий сразу после загрузки из админки.
         UploadedImageWatcher::register();

@@ -39,7 +39,7 @@ class CatalogController extends Controller
     /** Проверка промокода закрытого раздела. Верный код открывает его на сессию. */
     public function unlock(Request $request, Category $category)
     {
-        abort_unless($category->is_active && $category->is_private, 404);
+        abort_unless($category->is_active && $category->isLockedNow(), 404);
 
         if (! $category->accessCodeMatches($request->input('access_code'))) {
             return back()->with('error', 'Промокод не подошёл');
@@ -54,7 +54,7 @@ class CatalogController extends Controller
     {
         // Внутри закрытого раздела показываем его товары, во всех остальных
         // списках витрины товары закрытых разделов не участвуют.
-        $query = $category?->is_private ? Product::published() : Product::listedPublicly();
+        $query = $category?->isLockedNow() ? Product::published() : Product::listedPublicly();
 
         if ($category) {
             $query->whereHas('categories', fn ($q) => $q->where('categories.id', $category->id));
@@ -77,7 +77,7 @@ class CatalogController extends Controller
         // же применения фильтра.
         $priceScope = Variant::query()
             ->whereHas('product', function ($q) use ($category) {
-                $category?->is_private ? $q->published() : $q->listedPublicly();
+                $category?->isLockedNow() ? $q->published() : $q->listedPublicly();
                 if ($category) {
                     $q->whereHas('categories', fn ($c) => $c->where('categories.id', $category->id));
                 }
@@ -88,7 +88,7 @@ class CatalogController extends Controller
             'title' => $category?->meta_title ?: ($category?->name ?? 'ALL'),
             'metaDescription' => $category?->meta_description ?: null,
             'category' => $category,
-            'metaRobots' => $category?->is_private ? 'noindex, nofollow' : null,
+            'metaRobots' => $category?->isLockedNow() ? 'noindex, nofollow' : null,
             'colorValues' => Attribute::where('code', 'color')->first()?->values()->orderBy('sort_order')->get() ?? collect(),
             'sizeValues' => Attribute::where('code', 'size')->first()?->values()->orderBy('sort_order')->get() ?? collect(),
             'priceMin' => (int) floor((float) (clone $priceScope)->min(\DB::raw('COALESCE(sale_price, regular_price)'))),

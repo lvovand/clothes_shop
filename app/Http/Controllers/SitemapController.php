@@ -16,7 +16,7 @@ class SitemapController extends Controller
      */
     public function __invoke()
     {
-        $xml = Cache::remember('sitemap:xml', 3600, fn () => view('sitemap', [
+        $xml = Cache::remember('sitemap:xml', Category::cacheTtl(3600), fn () => view('sitemap', [
             'urls' => $this->urls(),
         ])->render());
 
