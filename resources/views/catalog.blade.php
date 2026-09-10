@@ -53,13 +53,30 @@
 @include('partials.pagination', ['paginator' => $products])
 
 @if($category?->seo_text)
-    <div class="catalog-seo-text">
+    {{-- Текст под каталогом нужен поисковикам, но на экране мешает: держим его
+         в разметке и уводим за пределы экрана, а над футером показываем кнопку
+         «Читать подробнее», которая возвращает блок на место. Без JS блок
+         показывается сразу — за это отвечает <noscript> ниже. --}}
+    <div class="catalog-seo is-collapsed" data-seo-text>
         <div class="container">
             <div class="content-width">
-                {!! nl2br(e($category->seo_text)) !!}
+                <button type="button" class="catalog-seo__toggle" data-seo-toggle>Читать подробнее</button>
+            </div>
+        </div>
+        <div class="catalog-seo-text">
+            <div class="container">
+                <div class="content-width">
+                    {!! nl2br(e($category->seo_text)) !!}
+                </div>
             </div>
         </div>
     </div>
+    <noscript>
+        <style>
+            .catalog-seo.is-collapsed .catalog-seo-text { position: static; width: auto; height: auto; overflow: visible; }
+            .catalog-seo__toggle { display: none; }
+        </style>
+    </noscript>
 @endif
 
 @endsection

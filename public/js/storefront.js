@@ -157,3 +157,21 @@ jQuery(function ($) {
     tick();
     timer = setInterval(tick, 1000);
 })();
+
+/* Текст под каталогом: по клику на «Читать подробнее» блок возвращается на своё
+   место над футером (см. .catalog-seo в storefront.css). */
+(function () {
+    document.addEventListener('click', function (event) {
+        var toggle = event.target.closest('[data-seo-toggle]');
+
+        if (!toggle) {
+            return;
+        }
+
+        var box = toggle.closest('[data-seo-text]');
+
+        if (box) {
+            box.classList.remove('is-collapsed');
+        }
+    });
+})();

@@ -581,6 +581,48 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
     margin: 40px 0 8px;
 }
 
+/* Свёрнутое состояние: блок остаётся в разметке (его читают поисковики), но
+   уезжает за пределы экрана — приём «visually hidden», а не display:none. */
+.catalog-seo.is-collapsed .catalog-seo-text {
+    position: absolute;
+    left: -9999px;
+    top: auto;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+/* Кнопка над футером: тонкая ссылка, а не чёрная кнопка темы — она не должна
+   спорить с «В корзину» на карточках. */
+.catalog-seo__toggle {
+    display: inline-block;
+    margin: 32px 0 8px;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.35);
+    background: none;
+    color: #1a1a1a;
+    font: inherit;
+    font-size: 14px;
+    line-height: 1.4;
+    cursor: pointer;
+}
+
+.catalog-seo__toggle:hover {
+    border-bottom-color: #1a1a1a;
+}
+
+/* Развернули — кнопка больше не нужна. */
+.catalog-seo:not(.is-collapsed) .catalog-seo__toggle {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .catalog-seo__toggle {
+        margin-top: 24px;
+    }
+}
+
 .catalog-seo-text .content-width {
     color: #5a5a5a;
     font-size: 15px;
