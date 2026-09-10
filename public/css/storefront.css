@@ -773,7 +773,8 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
     height: auto;
 }
 
-.collection-teaser__banner-mobile {
+/* Селектор с тегом — иначе правило выше (тоже с тегом) перебивает по весу и видны обе картинки. */
+.collection-teaser__banner img.collection-teaser__banner-mobile {
     display: none;
 }
 
@@ -862,11 +863,11 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
         padding: 0 16px;
     }
 
-    .collection-teaser__banner-desktop {
+    .collection-teaser__banner img.collection-teaser__banner-desktop {
         display: none;
     }
 
-    .collection-teaser__banner-mobile {
+    .collection-teaser__banner img.collection-teaser__banner-mobile {
         display: block;
     }
 
