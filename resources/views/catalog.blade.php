@@ -66,7 +66,7 @@
         <div class="catalog-seo-text">
             <div class="container">
                 <div class="content-width">
-                    {!! nl2br(e($category->seo_text)) !!}
+                    {!! $category->seo_text !!}
                 </div>
             </div>
         </div>

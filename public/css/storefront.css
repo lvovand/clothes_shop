@@ -629,6 +629,57 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
     line-height: 1.6;
 }
 
+/* Текст приходит из визуального редактора, поэтому в нём бывают заголовки,
+   списки, ссылки и картинки — правила те же, что у текста тизера коллекции. */
+.catalog-seo-text h2,
+.catalog-seo-text h3,
+.catalog-seo-text h4 {
+    margin: 20px 0 8px;
+    color: #1a1a1a;
+    font-size: 18px;
+    line-height: 1.3;
+}
+
+.catalog-seo-text h3 {
+    font-size: 16px;
+}
+
+.catalog-seo-text h4 {
+    font-size: 15px;
+}
+
+.catalog-seo-text p {
+    margin: 0 0 12px;
+}
+
+.catalog-seo-text ul,
+.catalog-seo-text ol {
+    margin: 12px 0;
+    padding-left: 20px;
+}
+
+.catalog-seo-text ul {
+    list-style: disc;
+}
+
+.catalog-seo-text ol {
+    list-style: decimal;
+}
+
+.catalog-seo-text li {
+    margin-bottom: 6px;
+}
+
+.catalog-seo-text a {
+    color: #1a1a1a;
+    text-decoration: underline;
+}
+
+.catalog-seo-text img {
+    max-width: 100%;
+    height: auto;
+}
+
 @media (max-width: 768px) {
     .catalog-seo-text {
         margin-top: 28px;
