@@ -20,6 +20,8 @@ Route::get('/catalog', [CatalogController::class, 'all'])->name('catalog.all');
 Route::get('/catalog/{category}', [CatalogController::class, 'category'])->name('catalog.category');
 // Промокод закрытого раздела: верный код открывает его до конца сессии.
 Route::post('/catalog/{category}/access', [CatalogController::class, 'unlock'])->name('catalog.unlock');
+// Предпросмотр раздела для администраторов: без входа в админку — 404.
+Route::get('/catalog/{category}/preview', [CatalogController::class, 'preview'])->name('catalog.preview');
 
 Route::get('/product/{product}', [ProductController::class, 'show'])->name('product.show');
 

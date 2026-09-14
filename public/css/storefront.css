@@ -686,6 +686,39 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
     }
 }
 
+/* Текст над товарами: оформление текста берёт у .catalog-seo-text, свои только
+   отступы — стоит между хлебными крошками и кнопкой «Фильтры». */
+.catalog-intro.catalog-seo-text {
+    margin: 0 0 24px;
+}
+
+.catalog-intro .content-width > :last-child {
+    margin-bottom: 0;
+}
+
+/* Боковой отступ — как у .filters и .catalog в media.css темы. */
+@media screen and (max-width: 1350px) {
+    .catalog-intro {
+        padding: 0 16px;
+    }
+}
+
+/* Плашка на странице предпросмотра раздела (видна только администраторам). */
+.catalog-preview-bar {
+    padding: 10px 16px;
+    background: #1a1a1a;
+    color: #fff;
+    font-size: 14px;
+    line-height: 1.4;
+    text-align: center;
+}
+
+.catalog-preview-bar a {
+    margin-left: 8px;
+    color: #fff;
+    text-decoration: underline;
+}
+
 /* Закрытый раздел: страница с промокодом и пометка «только для просмотра» на
    карточке товара. На эталоне таких экранов нет — метрики берём от каталога:
    ширина .content-width, шрифт и кнопка как у форм оформления заказа. */

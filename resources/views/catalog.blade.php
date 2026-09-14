@@ -12,6 +12,14 @@
 
 @section('content')
 
+@if(!empty($isPreview))
+    {{-- Плашка предпросмотра: адрес открывается только под входом в админку. --}}
+    <div class="catalog-preview-bar">
+        Предпросмотр раздела — эту страницу видят только администраторы.
+        <a href="{{ url('/admin/categories/'.$category->slug.'/edit') }}">Вернуться к редактированию</a>
+    </div>
+@endif
+
 <div class="breadcrumbs-catalog">
     <div class="container">
         <div class="breadcrumbs">
@@ -20,6 +28,17 @@
         </div>
     </div>
 </div>
+@if($category?->intro_text)
+    {{-- Текст над товарами из карточки раздела. Класс catalog-seo-text даёт
+         оформление заголовков, списков и ссылок — то же, что у текста под каталогом. --}}
+    <div class="catalog-intro catalog-seo-text">
+        <div class="container">
+            <div class="content-width">
+                {!! $category->intro_text !!}
+            </div>
+        </div>
+    </div>
+@endif
 <!--filters-->
 <div class="filters">
     <div class="container">

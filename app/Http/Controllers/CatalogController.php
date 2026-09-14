@@ -32,8 +32,20 @@ class CatalogController extends Controller
             ]);
         }
 
-        // ALL — виртуальная категория: товары к ней не привязаны, показываем весь каталог.
-        return $this->render($request, $category->is_virtual ? null : $category);
+        return $this->render($request, $category);
+    }
+
+    /**
+     * Предпросмотр раздела для администраторов: страница в том виде, в каком её
+     * увидит покупатель, но без проверок «включён» и «закрыт/не запущен». Кто не
+     * вошёл в админку — получает 404, как будто адреса нет. Из поиска страница
+     * закрыта noindex.
+     */
+    public function preview(Request $request, Category $category)
+    {
+        abort_unless(auth()->check(), 404);
+
+        return $this->render($request, $category, preview: true);
     }
 
     /** Проверка промокода закрытого раздела. Верный код открывает его на сессию. */
@@ -50,14 +62,18 @@ class CatalogController extends Controller
         return redirect()->route('catalog.category', $category);
     }
 
-    private function render(Request $request, ?Category $category)
+    private function render(Request $request, ?Category $category, bool $preview = false)
     {
+        // ALL — виртуальная категория: товары к ней не привязаны, показываем весь
+        // каталог, но тексты и название берём у самой категории.
+        $filterBy = $category?->is_virtual ? null : $category;
+
         // Внутри закрытого раздела показываем его товары, во всех остальных
         // списках витрины товары закрытых разделов не участвуют.
         $query = $category?->isLockedNow() ? Product::published() : Product::listedPublicly();
 
-        if ($category) {
-            $query->whereHas('categories', fn ($q) => $q->where('categories.id', $category->id));
+        if ($filterBy) {
+            $query->whereHas('categories', fn ($q) => $q->where('categories.id', $filterBy->id));
         }
 
         $query->with(['images', 'variants.attributeValues']);
@@ -76,10 +92,10 @@ class CatalogController extends Controller
         // без учёта уже выбранной цены, иначе диапазон схлопывался бы после первого
         // же применения фильтра.
         $priceScope = Variant::query()
-            ->whereHas('product', function ($q) use ($category) {
+            ->whereHas('product', function ($q) use ($category, $filterBy) {
                 $category?->isLockedNow() ? $q->published() : $q->listedPublicly();
-                if ($category) {
-                    $q->whereHas('categories', fn ($c) => $c->where('categories.id', $category->id));
+                if ($filterBy) {
+                    $q->whereHas('categories', fn ($c) => $c->where('categories.id', $filterBy->id));
                 }
             });
 
@@ -88,7 +104,8 @@ class CatalogController extends Controller
             'title' => $category?->meta_title ?: ($category?->name ?? 'ALL'),
             'metaDescription' => $category?->meta_description ?: null,
             'category' => $category,
-            'metaRobots' => $category?->isLockedNow() ? 'noindex, nofollow' : null,
+            'metaRobots' => ($preview || $category?->isLockedNow()) ? 'noindex, nofollow' : null,
+            'isPreview' => $preview,
             'colorValues' => Attribute::where('code', 'color')->first()?->values()->orderBy('sort_order')->get() ?? collect(),
             'sizeValues' => Attribute::where('code', 'size')->first()?->values()->orderBy('sort_order')->get() ?? collect(),
             'priceMin' => (int) floor((float) (clone $priceScope)->min(\DB::raw('COALESCE(sale_price, regular_price)'))),

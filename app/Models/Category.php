@@ -19,7 +19,7 @@ class Category extends Model
         'is_private', 'access_code',
         'launch_at', 'teaser_slug', 'teaser_title', 'teaser_lead', 'teaser_body',
         'teaser_image', 'teaser_image_mobile', 'show_in_menu', 'menu_label',
-        'meta_title', 'meta_description', 'seo_text',
+        'meta_title', 'meta_description', 'intro_text', 'seo_text',
     ];
 
     /** Превью раздела: своё, если загружено, иначе основная картинка. */

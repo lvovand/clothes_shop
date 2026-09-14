@@ -180,6 +180,16 @@ class CategoryResource extends Resource
                             ->visible(fn (Forms\Get $get) => (bool) $get('show_in_menu'))
                             ->helperText('Пусто — берётся название категории.'),
                     ]),
+                Forms\Components\Section::make('Текст над товарами')
+                    ->collapsible()
+                    ->schema([
+                        \App\Forms\Components\HtmlEditor::make('intro_text')
+                            ->label('Текст над товарами')
+                            ->hiddenLabel()
+                            ->minHeight(260)
+                            ->columnSpanFull()
+                            ->helperText('Необязательно. Показывается на странице раздела сразу под хлебными крошками, перед товарами. Как это выглядит на сайте, можно посмотреть кнопкой «Предпросмотр» вверху страницы (сначала сохраните изменения).'),
+                    ]),
                 Forms\Components\Section::make('SEO')
                     ->columns(2)
                     ->collapsible()
