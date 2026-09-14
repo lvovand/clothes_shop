@@ -562,11 +562,12 @@
         });
     }
 
+    // Адрес для расчёта отдаём только целиком — с улицей и домом: на недописанный
+    // адрес Яндекс Доставка отвечает ошибкой, а расчёт идёт прямо во время набора.
     function addressLine() {
-        const parts = ['street', 'house', 'room']
-            .map(name => form.querySelector(`[name="${name}"]`)?.value.trim())
-            .filter(Boolean);
-        return parts.length ? parts.join(', ') : null;
+        const value = name => form.querySelector(`[name="${name}"]`)?.value.trim() || '';
+        if (!value('street') || !value('house')) return null;
+        return ['street', 'house', 'room'].map(value).filter(Boolean).join(', ');
     }
 
     async function refreshTotals() {

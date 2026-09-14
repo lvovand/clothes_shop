@@ -195,11 +195,14 @@ class OrderService
             }
             $to['point_id'] = $destination['pvz_code'];
         } else {
-            $address = trim(implode(', ', array_filter([$city, $destination['address'] ?? null])));
-            if ($address === '') {
+            // Одного города мало: без дома Яндекс отвечает 400 «Missing some required
+            // address details» (проверено на живом API — «Москва, Тверская» не
+            // считается, «Москва, Тверская, 7» считается). Пока покупатель не ввёл
+            // улицу с домом, не спрашиваем — цена просто «ещё не рассчитана».
+            if (blank($destination['address'] ?? null)) {
                 return ['cost' => null, 'min' => null, 'max' => null];
             }
-            $to['address'] = $address;
+            $to['address'] = trim(implode(', ', array_filter([$city, $destination['address']])));
         }
 
         $quote = $this->yandexDelivery->quote(
