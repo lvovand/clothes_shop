@@ -228,7 +228,12 @@ class YandexDeliveryClient
         ]);
 
         if (! $response->successful()) {
-            $this->logFailure('offers/create', $response);
+            // Куда и откуда считали: «No delivery options for interval» приходит на
+            // отдельные пункты в отдельные часы, и без этих полей её не разобрать.
+            $this->logFailure('offers/create', $response, [
+                'source' => $sourcePointId ?: $this->dropoffPointId,
+                'destination' => $destination,
+            ]);
 
             return null;
         }
@@ -370,12 +375,12 @@ class YandexDeliveryClient
         return preg_match('~([\d.]+)~', $price, $m) ? (float) $m[1] : null;
     }
 
-    private function logFailure(string $endpoint, $response): void
+    private function logFailure(string $endpoint, $response, array $context = []): void
     {
         Log::error('Yandex Delivery request failed', [
             'endpoint' => $endpoint,
             'status' => $response->status(),
             'body' => mb_substr($response->body(), 0, 500),
-        ]);
+        ] + $context);
     }
 }

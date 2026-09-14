@@ -516,9 +516,20 @@
         }
         if (note) {
             const method = selectedMethod();
-            note.textContent = method && method.dataset.needsPvz === '1'
-                ? 'Выберите пункт выдачи — после этого посчитаем доставку.'
-                : 'Укажите город и адрес — после этого посчитаем доставку.';
+            const needsPvz = !!method && method.dataset.needsPvz === '1';
+            // Пункт или адрес уже указан, а цены нет — перевозчик туда сейчас не
+            // везёт (у Яндекса бывает «No delivery options for interval»). Просить
+            // «выбрать пункт» тут неверно: он выбран, нужен другой.
+            const filled = needsPvz ? !!pvzCodeInput.value : !!addressLine();
+            if (needsPvz) {
+                note.textContent = filled
+                    ? 'В этот пункт сейчас не получается доставить — выберите другой пункт или способ доставки.'
+                    : 'Выберите пункт выдачи — после этого посчитаем доставку.';
+            } else {
+                note.textContent = filled
+                    ? 'По этому адресу не получается рассчитать доставку — проверьте адрес или выберите другой способ.'
+                    : 'Укажите город и адрес — после этого посчитаем доставку.';
+            }
             note.style.display = unknown ? '' : 'none';
         }
     }
