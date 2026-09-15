@@ -11,6 +11,7 @@
                     csrf: @js(csrf_token()),
                     baseUrl: @js(asset('vendor/tinymce')),
                     languageUrl: @js(asset('vendor/tinymce/langs/ru.js')),
+                    fontsUrl: @js(asset('fonts')),
                 })
             },
             destroy() {
@@ -53,8 +54,12 @@
                 skin: dark ? 'oxide-dark' : 'oxide',
                 content_css: dark ? 'dark' : 'default',
                 plugins: 'advlist autolink lists link image charmap searchreplace visualblocks code fullscreen table wordcount autoresize preview',
-                toolbar: 'undo redo | blocks | bold italic underline | bullist numlist | link image table | removeformat | searchreplace visualblocks code fullscreen',
+                toolbar: 'undo redo | blocks fontsizeselect | bold italic underline | alignleft aligncenter alignright alignjustify | bullist numlist blockquote hr | link image table charmap | removeformat | searchreplace visualblocks code fullscreen',
                 block_formats: 'Абзац=p; Заголовок=h2; Подзаголовок=h3; Мелкий заголовок=h4',
+                // Шкала размеров подобрана по реально используемым в вёрстке сайта
+                // значениям (см. public/css/storefront.css), а не произвольная —
+                // чтобы текст из редактора не выбивался из остального дизайна.
+                fontsize_formats: '12px 13px 14px 15px 16px 18px 20px',
                 // Ничего не вычищаем: в тексте страниц лежит разметка темы (div-ы
                 // аккордеона, классы), и любая «нормализация» её ломает.
                 valid_elements: '*[*]',
@@ -65,7 +70,14 @@
                 entity_encoding: 'raw',
                 autoresize_bottom_margin: 24,
                 min_height: config.minHeight,
-                content_style: 'body{font-family:system-ui,sans-serif;font-size:15px;line-height:1.6;padding:12px}',
+                // На сайте один шрифт (Jost) без альтернатив, поэтому выбор шрифта
+                // в редакторе не добавляем — вместо этого подключаем сам Jost, чтобы
+                // текст в редакторе выглядел как на витрине, а не системным шрифтом.
+                content_style: "@font-face{font-family:'Jost';src:url('"+config.fontsUrl+"/Jost-Regular.woff2') format('woff2');font-weight:400}"
+                    + "@font-face{font-family:'Jost';src:url('"+config.fontsUrl+"/Jost-Medium.woff2') format('woff2');font-weight:500}"
+                    + "@font-face{font-family:'Jost';src:url('"+config.fontsUrl+"/Jost-SemiBold.woff2') format('woff2');font-weight:600}"
+                    + "@font-face{font-family:'Jost';src:url('"+config.fontsUrl+"/Jost-Bold.woff2') format('woff2');font-weight:700}"
+                    + "body{font-family:'Jost',sans-serif;font-size:15px;line-height:1.6;padding:12px}",
                 images_upload_handler: (blobInfo) => new Promise((resolve, reject) => {
                     const data = new FormData()
                     data.append('file', blobInfo.blob(), blobInfo.filename())
