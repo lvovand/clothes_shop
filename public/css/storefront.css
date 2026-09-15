@@ -945,3 +945,18 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
         font-size: 10px;
     }
 }
+
+/* Утилиты «спрятать на мобильном/на десктопе» для текста, набранного в
+   визуальном редакторе (кнопка «Исходный код» → добавить class на нужный
+   блок). Брейкпоинт 768px — как везде в этом файле. */
+@media (max-width: 768px) {
+    .hide-mobile {
+        display: none !important;
+    }
+}
+
+@media (min-width: 769px) {
+    .hide-desktop {
+        display: none !important;
+    }
+}
