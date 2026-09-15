@@ -5,6 +5,17 @@
 */
 
 /*
+    Шрифт Jost для текста над каталогом (.catalog-intro) — файлы лежат локально
+    в public/fonts, без обращения к сторонним хостингам шрифтов. Остальной сайт
+    Jost не использует, поэтому объявляем его здесь, а не в общей теме.
+*/
+@font-face { font-family: 'Jost'; src: url('/fonts/Jost-Light.woff2') format('woff2'); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Jost'; src: url('/fonts/Jost-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Jost'; src: url('/fonts/Jost-Medium.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Jost'; src: url('/fonts/Jost-SemiBold.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Jost'; src: url('/fonts/Jost-Bold.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+/*
     Цветовые свотчи. Тема жёстко задаёт обёртке цвета 24×24 и круглую форму —
     расчёт на цветной кружок. Но названия цветов у нас (как и у донора) выводятся
     текстовой плашкой: она шире обёртки, центрируется по ней и наезжает слева на
@@ -687,9 +698,12 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
 }
 
 /* Текст над товарами: оформление текста берёт у .catalog-seo-text, свои только
-   отступы — стоит между хлебными крошками и кнопкой «Фильтры». */
+   отступы — стоит между хлебными крошками и кнопкой «Фильтры» — и шрифт Jost
+   (см. @font-face выше), которым этот блок должен набираться отдельно от
+   остального сайта. */
 .catalog-intro.catalog-seo-text {
     margin: 0 0 24px;
+    font-family: 'Jost', sans-serif;
 }
 
 .catalog-intro .content-width > :last-child {
