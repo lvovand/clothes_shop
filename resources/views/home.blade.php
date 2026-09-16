@@ -27,7 +27,7 @@
             duration: 25000,
             startVisible: true,
             duplicated: true,
-            direction: 'left'
+            direction: 'right'
         });
     });
 </script>
