@@ -9,6 +9,21 @@ use App\Models\MenuItem;
 class CategoryObserver
 {
     /**
+     * Переключили ли тумблер в этом сохранении. Считаем до записи (там ещё видно
+     * прежнее значение) и запоминаем по объекту: обсервер на каждое событие
+     * создаётся заново, поэтому обычное свойство не переживёт saving → saved.
+     *
+     * @var array<int, bool>
+     */
+    private static array $menuToggleChanged = [];
+
+    public function saving(Category $category): void
+    {
+        self::$menuToggleChanged[spl_object_id($category)] = ! $category->exists
+            || $category->isDirty('show_in_menu');
+    }
+
+    /**
      * Тумблер «Показывать пункт в левом меню» ведёт настоящий пункт главного меню,
      * а не отдельную ветку в шаблоне: так пункт остаётся перетаскиваемым в разделе
      * «Меню сайта», а адрес берётся из связи (до старта — страница ожидания, после —
@@ -16,6 +31,14 @@ class CategoryObserver
      */
     public function saved(Category $category): void
     {
+        // Пункт меню трогаем только когда тумблер реально переключили: иначе любая
+        // правка категории (текст, фото) гасила бы пункт, который включали руками
+        // в разделе «Меню в шапке».
+        $toggled = self::$menuToggleChanged[spl_object_id($category)]
+            ?? ($category->wasRecentlyCreated || $category->wasChanged('show_in_menu'));
+
+        unset(self::$menuToggleChanged[spl_object_id($category)]);
+
         $menu = Menu::where('key', 'primary')->first();
 
         if (! $menu) {
@@ -28,9 +51,11 @@ class CategoryObserver
             ->first();
 
         if (! $category->show_in_menu) {
-            // Пункт не удаляем: выключенный тумблер можно вернуть, а вместе с ним
-            // и прежнее место пункта в дереве меню.
-            $item?->update(['is_active' => false]);
+            if ($toggled) {
+                // Пункт не удаляем: выключенный тумблер можно вернуть, а вместе с ним
+                // и прежнее место пункта в дереве меню.
+                $item?->update(['is_active' => false]);
+            }
 
             return;
         }
@@ -38,7 +63,21 @@ class CategoryObserver
         $label = $category->menu_label ?: $category->name;
 
         if ($item) {
-            $item->update(['label' => $label, 'is_active' => true]);
+            $updates = [];
+
+            if ($toggled) {
+                $updates['is_active'] = true;
+            }
+
+            // Подпись существующего пункта правится в разделе «Меню в шапке»,
+            // поэтому перебиваем её только когда её задали в карточке категории.
+            if ($category->wasChanged('menu_label') && filled($category->menu_label)) {
+                $updates['label'] = $category->menu_label;
+            }
+
+            if ($updates) {
+                $item->update($updates);
+            }
 
             return;
         }
