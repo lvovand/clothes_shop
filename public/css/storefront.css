@@ -960,3 +960,26 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
         display: none !important;
     }
 }
+
+/* «С этим носят» на карточке товара: отступы как у слайдера новинок на главной
+   (.new-collect-slider в main.css/media.css темы), у которого другой класс. */
+.related-products {
+    padding-top: 0;
+}
+
+.related-slider {
+    margin-left: 63px !important;
+    position: relative;
+}
+
+@media (max-width: 1350px) {
+    .related-slider {
+        margin-left: 16px !important;
+    }
+}
+
+/* Выключенные стрелки (карточек меньше, чем помещается) — прозрачнее. */
+.related-slider .swiper-button-disabled {
+    opacity: .3;
+    cursor: default;
+}

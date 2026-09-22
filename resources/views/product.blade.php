@@ -259,6 +259,36 @@
 
 </div>
 
+@if($relatedProducts->isNotEmpty())
+{{-- «С этим носят» — разметка слайдера новинок с главной (.new-collect), но свой
+     класс слайдера: .new-collect-slider main.js темы инициализирует со своими
+     настройками (3.2 карточки, бесконечная прокрутка), а здесь их видно 4. --}}
+<div class="new-collect related-products">
+    <div class="container">
+        <div class="top-title">
+            <p class="h2-title">С этим носят</p>
+        </div>
+
+        <div class="related-slider swiper">
+            <div class="swiper-wrapper">
+                @foreach($relatedProducts as $related)
+                    <div class="swiper-slide">
+                        @include('partials.product-card', ['product' => $related, 'cardSizes' => '(min-width: 1200px) 340px, (min-width: 768px) 36vw, 83vw'])
+                    </div>
+                @endforeach
+            </div>
+
+            <div class="slider__prevCol swiper-arrow-effects">
+                <img src="{{ $icon('svg-srrow.svg') }}" alt="arrow-left">
+            </div>
+            <div class="slider__nextCol swiper-arrow-effects">
+                <img src="{{ $icon('svg-arrowr.svg') }}" alt="arrow-right">
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 @endsection
 
 @push('scripts')
@@ -270,6 +300,26 @@
     ровно та же разметка и тайминги, что в main.js эталона.
 --}}
 <script>
+(function () {
+    const el = document.querySelector('.related-slider');
+    if (! el) return;
+
+    new Swiper(el, {
+        slidesPerView: 1.2,
+        spaceBetween: 20,
+        speed: 600,
+        freeMode: true,
+        navigation: {
+            nextEl: el.querySelector('.slider__nextCol'),
+            prevEl: el.querySelector('.slider__prevCol'),
+        },
+        breakpoints: {
+            768: { slidesPerView: 2.8 },
+            1200: { slidesPerView: 4 },
+        },
+    });
+})();
+
 jQuery(function ($) {
     const $card = $('.product-card');
     if (! $card.length) return;

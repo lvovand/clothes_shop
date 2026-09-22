@@ -51,6 +51,18 @@ class Product extends Model
         return $this->hasMany(Variant::class);
     }
 
+    /** Ручной подбор для блока «С этим носят», в порядке из админки. */
+    public function relatedLinks(): HasMany
+    {
+        return $this->hasMany(ProductRelated::class)->orderBy('sort_order');
+    }
+
+    /** Просмотры карточки по дням (см. App\Services\Catalog\ProductViews). */
+    public function dailyViews(): HasMany
+    {
+        return $this->hasMany(ProductDailyView::class);
+    }
+
     public function scopePublished($query)
     {
         return $query->where('status', 'published');

@@ -73,6 +73,31 @@ class ProductResource extends Resource
                             ->dehydrateStateUsing(fn ($state) => (int) $state)
                             ->helperText('Чем меньше число, тем выше товар в каталоге. Можно ставить отрицательные: -10 поднимет товар в начало, остальным менять ничего не нужно.'),
                     ]),
+                Forms\Components\Section::make('С этим носят')
+                    ->description('Товары для блока под карточкой товара, из любых разделов. Порядок меняется перетаскиванием. Если выбрано меньше 8 (или ничего), блок добирается сам: сначала самые просматриваемые товары из тех же разделов, затем остальные товары этих разделов.')
+                    ->collapsible()
+                    ->schema([
+                        Forms\Components\Repeater::make('relatedLinks')
+                            ->hiddenLabel()
+                            ->relationship()
+                            ->orderColumn('sort_order')
+                            ->reorderable()
+                            ->addActionLabel('Добавить товар')
+                            ->defaultItems(0)
+                            ->simple(
+                                Forms\Components\Select::make('related_product_id')
+                                    ->label('Товар')
+                                    // $record внутри повторителя — строка связи, сам товар берём со страницы.
+                                    ->options(fn ($livewire) => Product::query()
+                                        ->when($livewire->record ?? null, fn ($q, $product) => $q->whereKeyNot($product->id))
+                                        ->orderBy('name')
+                                        ->pluck('name', 'id'))
+                                    ->searchable()
+                                    ->required()
+                                    ->distinct()
+                                    ->disableOptionsWhenSelectedInSiblingRepeaterItems(),
+                            ),
+                    ]),
                 Forms\Components\Section::make('SEO')
                     ->columns(2)
                     ->collapsible()
