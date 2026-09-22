@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\OrderConfirmation;
 use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\PaymentMethod;
@@ -21,6 +22,7 @@ use App\Services\Shipping\ShipmentDispatcher;
 use App\Services\YandexPay\YandexPayClient;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 
 class CheckoutController extends Controller
@@ -241,6 +243,31 @@ class CheckoutController extends Controller
                 $callback(app(TelegramNotifier::class));
             } catch (\Throwable $e) {
                 Log::error('Telegram notify failed', ['error' => $e->getMessage()]);
+            }
+        });
+    }
+
+    /**
+     * Письмо-подтверждение — тоже после ответа покупателю и тоже не должно
+     * ронять оформление заказа при сбое SMTP.
+     */
+    private function sendOrderConfirmation(Order $order): void
+    {
+        if (! $order->customer_email) {
+            return;
+        }
+
+        app()->terminating(function () use ($order) {
+            try {
+                Mail::to($order->customer_email)->send(new OrderConfirmation($order));
+            } catch (\Throwable $e) {
+                Log::error('Order confirmation mail failed', ['order' => $order->id, 'error' => $e->getMessage()]);
+
+                try {
+                    app(TelegramNotifier::class)->mailFailed($order, $e->getMessage());
+                } catch (\Throwable $e2) {
+                    Log::error('Telegram notify failed', ['error' => $e2->getMessage()]);
+                }
             }
         });
     }
@@ -548,11 +575,14 @@ class CheckoutController extends Controller
         if ((float) $order->total <= 0) {
             $order->update(['payment_status' => 'paid']);
             $this->dispatchDelivery($order);
+            $this->sendOrderConfirmation($order);
 
             return redirect()->route('checkout.success', ['order' => $order->order_number]);
         }
 
         if ($data['payment_method'] === 'cod') {
+            $this->sendOrderConfirmation($order);
+
             return redirect()->route('checkout.success', ['order' => $order->order_number]);
         }
 

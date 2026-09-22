@@ -324,6 +324,22 @@ class TelegramNotifier
         ]));
     }
 
+    /** Письмо-подтверждение заказа не ушло — клиент об этом не узнает сам, нужно сообщить вручную. */
+    public function mailFailed(Order $order, string $reason): void
+    {
+        if (! $this->enabled()) {
+            return;
+        }
+
+        $this->send(implode(PHP_EOL, [
+            '<b>⚠️ Письмо-подтверждение заказа не отправлено</b>',
+            '',
+            'Заказ №'.e((string) ($order->order_number ?: $order->id)),
+            'Email: '.e((string) $order->customer_email),
+            'Причина: '.e($reason),
+        ]));
+    }
+
     private function orderText(Order $order, string $title): string
     {
         $order->loadMissing('items', 'shippingMethod');

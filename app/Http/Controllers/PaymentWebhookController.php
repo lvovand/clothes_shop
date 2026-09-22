@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Mail\GiftCertificatePurchased;
+use App\Mail\OrderConfirmation;
 use App\Models\GiftCertificate;
 use App\Models\Order;
 use App\Models\Payment;
@@ -149,6 +150,20 @@ class PaymentWebhookController extends Controller
                         $telegram->orderPaid($order);
                     } catch (\Throwable $e) {
                         Log::error('Telegram notify failed', ['error' => $e->getMessage()]);
+                    }
+
+                    if ($order->customer_email) {
+                        try {
+                            Mail::to($order->customer_email)->send(new OrderConfirmation($order));
+                        } catch (\Throwable $e) {
+                            Log::error('Order confirmation mail failed', ['order' => $order->id, 'error' => $e->getMessage()]);
+
+                            try {
+                                $telegram->mailFailed($order, $e->getMessage());
+                            } catch (\Throwable $e2) {
+                                Log::error('Telegram notify failed', ['error' => $e2->getMessage()]);
+                            }
+                        }
                     }
 
                     $this->dispatchDelivery($order, $telegram);
