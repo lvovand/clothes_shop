@@ -983,3 +983,33 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
     opacity: .3;
     cursor: default;
 }
+
+/* Строка «С этим носят» в списке спойлеров карточки — вид как у .spoiler-head
+   (main.css / media.css темы), но это ссылка-якорь на блок под карточкой. */
+.related-link-wrap {
+    border-top: 1px solid #E7E7E7;
+    border-bottom: 1px solid #E7E7E7;
+}
+
+.related-link {
+    font-size: 18px;
+    font-weight: 400;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 28px 0;
+    color: inherit;
+}
+
+@media screen and (max-width: 768px) {
+    .related-link {
+        font-size: 15px;
+        padding: 23px 0;
+    }
+}
+
+/* Шапка висит сверху — без отступа заголовок блока уехал бы под неё. */
+#related {
+    scroll-margin-top: 110px;
+}

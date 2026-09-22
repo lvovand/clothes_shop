@@ -130,7 +130,8 @@ class RelatedProductsTest extends TestCase
             ->assertOk()
             ->assertSee('С этим носят')
             ->assertSee('class="related-slider', false)
-            ->assertSee('TEE-1');
+            ->assertSee('TEE-1')
+            ->assertSee('href="#related"', false);
     }
 
     public function test_no_block_when_nothing_to_suggest(): void
@@ -138,7 +139,8 @@ class RelatedProductsTest extends TestCase
         $this->withHeader('User-Agent', self::BROWSER)
             ->get('/product/main-tee')
             ->assertOk()
-            ->assertDontSee('class="related-slider', false);
+            ->assertDontSee('class="related-slider', false)
+            ->assertDontSee('href="#related"', false);
     }
 
     public function test_view_is_counted_once_per_visitor_per_day(): void

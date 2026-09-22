@@ -244,6 +244,17 @@
             </div>
         @endforeach
 
+        {{-- Не .spoiler-wrap/.spoiler-head: на них main.js темы вешает раскрытие
+             с preventDefault. Вид повторяет строку спойлера, клик листает к блоку. --}}
+        @if($relatedProducts->isNotEmpty())
+            <div class="related-link-wrap">
+                <a href="#related" class="related-link">С этим носят                    <div class="drop-arrow">
+                        <img src="{{ $icon('triangle-down.svg') }}" alt="">
+                    </div>
+                </a>
+            </div>
+        @endif
+
     </div>
     <!--                descriptions END-->
 
@@ -263,7 +274,7 @@
 {{-- «С этим носят» — разметка слайдера новинок с главной (.new-collect), но свой
      класс слайдера: .new-collect-slider main.js темы инициализирует со своими
      настройками (3.2 карточки, бесконечная прокрутка), а здесь их видно 4. --}}
-<div class="new-collect related-products">
+<div class="new-collect related-products" id="related">
     <div class="container">
         <div class="top-title">
             <p class="h2-title">С этим носят</p>
@@ -303,6 +314,11 @@
 (function () {
     const el = document.querySelector('.related-slider');
     if (! el) return;
+
+    document.querySelector('.related-link')?.addEventListener('click', function (e) {
+        e.preventDefault();
+        el.closest('#related').scrollIntoView({ behavior: 'smooth' });
+    });
 
     new Swiper(el, {
         slidesPerView: 1.2,
