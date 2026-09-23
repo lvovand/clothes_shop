@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/** Товар, вручную добавленный в блок «С этим носят» другого товара. */
+/** Товар, вручную добавленный в блок «Смотрите ещё» другого товара. */
 class ProductRelated extends Model
 {
     protected $table = 'product_related';

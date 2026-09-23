@@ -51,7 +51,7 @@ class Product extends Model
         return $this->hasMany(Variant::class);
     }
 
-    /** Ручной подбор для блока «С этим носят», в порядке из админки. */
+    /** Ручной подбор для блока «Смотрите ещё», в порядке из админки. */
     public function relatedLinks(): HasMany
     {
         return $this->hasMany(ProductRelated::class)->orderBy('sort_order');

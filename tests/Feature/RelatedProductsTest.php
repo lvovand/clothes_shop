@@ -15,7 +15,7 @@ use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
- * Блок «С этим носят»: ручной подбор → популярные из раздела → остальные из раздела.
+ * Блок «Смотрите ещё»: ручной подбор → популярные из раздела → остальные из раздела.
  */
 class RelatedProductsTest extends TestCase
 {
@@ -128,7 +128,7 @@ class RelatedProductsTest extends TestCase
         $this->withHeader('User-Agent', self::BROWSER)
             ->get('/product/main-tee')
             ->assertOk()
-            ->assertSee('С этим носят')
+            ->assertSee('Смотрите ещё')
             ->assertSee('class="related-slider', false)
             ->assertSee('TEE-1')
             ->assertSee('href="#related"', false);
@@ -168,7 +168,7 @@ class RelatedProductsTest extends TestCase
         $this->actingAs(User::factory()->create());
 
         Livewire::test(EditProduct::class, ['record' => $this->main->getRouteKey()])
-            ->assertSee('С этим носят')
+            ->assertSee('Смотрите ещё')
             ->set('data.relatedLinks', [
                 'x1' => ['related_product_id' => $b->id],
                 'x2' => ['related_product_id' => $a->id],
