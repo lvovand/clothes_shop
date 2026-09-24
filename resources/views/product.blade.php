@@ -284,7 +284,7 @@
             <div class="swiper-wrapper">
                 @foreach($relatedProducts as $related)
                     <div class="swiper-slide">
-                        @include('partials.product-card', ['product' => $related, 'cardSizes' => '(min-width: 1200px) 340px, (min-width: 768px) 36vw, 83vw'])
+                        @include('partials.product-card', ['product' => $related, 'cardSizes' => '(min-width: 1200px) 340px, (min-width: 768px) 36vw, 62vw'])
                     </div>
                 @endforeach
             </div>
@@ -321,8 +321,8 @@
     });
 
     new Swiper(el, {
-        slidesPerView: 1.2,
-        spaceBetween: 20,
+        slidesPerView: 1.5,
+        spaceBetween: 16,
         speed: 600,
         freeMode: true,
         navigation: {
@@ -330,8 +330,8 @@
             prevEl: el.querySelector('.slider__prevCol'),
         },
         breakpoints: {
-            768: { slidesPerView: 2.8 },
-            1200: { slidesPerView: 4 },
+            768: { slidesPerView: 2.8, spaceBetween: 20 },
+            1200: { slidesPerView: 4, spaceBetween: 20 },
         },
     });
 })();

@@ -984,6 +984,44 @@ ul.col-01 li:last-child .block-fake-adress .address-field_room {
     cursor: default;
 }
 
+/* На телефоне media.css темы гасит стрелки у всех слайдеров (у неё листают только
+   свайпом). Здесь они нужны, поэтому возвращаем — но своей раскладкой: одна у
+   левого края, другая у правого, на белой подложке, чтобы читались и на тёмном
+   фото. Позиции темы (обе стрелки справа, right: 41/92px) на узком экране не
+   годятся, поэтому переопределяем и :hover-сдвиг. */
+@media screen and (max-width: 768px) {
+    .related-slider .slider__prevCol,
+    .related-slider .slider__nextCol,
+    .related-slider .slider__prevCol:hover,
+    .related-slider .slider__nextCol:hover {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, .85);
+        top: 34%;
+    }
+
+    .related-slider .slider__prevCol,
+    .related-slider .slider__prevCol:hover {
+        left: 8px;
+        right: auto;
+    }
+
+    .related-slider .slider__nextCol,
+    .related-slider .slider__nextCol:hover {
+        right: 12px;
+        left: auto;
+    }
+
+    .related-slider .swiper-arrow-effects img {
+        width: 9px;
+        height: auto;
+    }
+}
+
 /* Строка «С этим носят» в списке спойлеров карточки — вид как у .spoiler-head
    (main.css / media.css темы), но это ссылка-якорь на блок под карточкой. */
 .related-link-wrap {
